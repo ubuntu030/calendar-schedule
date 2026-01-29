@@ -1,0 +1,159 @@
+import { useState, type SetStateAction } from "react";
+import "./App.css";
+
+import { Tabs, Tab, Box, TextField, Button } from "@mui/material";
+import {
+  Calendar,
+  Users,
+  Settings,
+  ChevronRight,
+  ChevronLeft,
+} from "lucide-react";
+import StaffManager from "./components/StaffManager";
+import HolidayManager from "./components/HolidayManager";
+import ScheduleTable from "./components/ScheduleTable";
+
+export default function App() {
+  const [currentTab, setCurrentTab] = useState(0);
+  const [currentMonth, setCurrentMonth] = useState("2026-02");
+
+  // 初始資料
+  const [staffList, setStaffList] = useState([
+    { id: "200043", name: "廖仁彥", title: "Chef" },
+    { id: "170142", name: "郭宜樺", title: "Sous chef" },
+    { id: "190098", name: "羅雅今", title: "CDP" },
+    { id: "220006", name: "黃瀚祈", title: "Demi CDP" },
+    { id: "230023", name: "鄭博容", title: "Commis" },
+    { id: "PT001", name: "鄭淨文", title: "PT" },
+  ]);
+
+  const [schedules, setSchedules] = useState({});
+  const [holidays, setHolidays] = useState([]);
+
+  // 更新排班
+  const handleUpdateShift = (
+    staffId: string | number,
+    day: any,
+    value: any,
+  ) => {
+    setSchedules((prev) => {
+      const monthData = prev[currentMonth] || {};
+      const staffData = monthData[staffId] || {};
+      return {
+        ...prev,
+        [currentMonth]: {
+          ...monthData,
+          [staffId]: { ...staffData, [day]: value },
+        },
+      };
+    });
+  };
+
+  const handleMonthChange = (e: {
+    target: { value: SetStateAction<string> };
+  }) => {
+    setCurrentMonth(e.target.value);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-10">
+      {/* 頂部導航 */}
+      <header className="bg-white border-b px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-0 z-50 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="bg-blue-600 p-2 rounded-lg text-white">
+            <Calendar size={24} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800">
+              React 智能排班系統
+            </h1>
+            <p className="text-xs text-slate-500">v1.0.0 (MUI + Tailwind)</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 bg-slate-100 p-1.5 rounded-lg">
+          <Button size="small" disabled startIcon={<ChevronLeft size={16} />}>
+            上個月
+          </Button>
+          <TextField
+            type="month"
+            value={currentMonth}
+            onChange={handleMonthChange}
+            variant="standard"
+            InputProps={{
+              disableUnderline: true,
+              className: "font-bold text-slate-700 mx-2",
+            }}
+          />
+          <Button size="small" disabled endIcon={<ChevronRight size={16} />}>
+            下個月
+          </Button>
+        </div>
+      </header>
+
+      {/* 主要內容區 */}
+      <main className="max-w-7xl mx-auto mt-6 px-4">
+        <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+          <Tabs
+            value={currentTab}
+            onChange={(e, v) => setCurrentTab(v)}
+            aria-label="app tabs"
+          >
+            <Tab
+              icon={<Calendar size={18} />}
+              iconPosition="start"
+              label="排班總表"
+            />
+            <Tab
+              icon={<Users size={18} />}
+              iconPosition="start"
+              label="人員管理"
+            />
+            <Tab
+              icon={<Settings size={18} />}
+              iconPosition="start"
+              label="節日與規則"
+            />
+          </Tabs>
+        </Box>
+
+        <div className="bg-white rounded-xl shadow-lg border min-h-[600px] flex flex-col">
+          {currentTab === 0 && (
+            <div className="p-0 flex-1 flex flex-col">
+              <div className="p-4 bg-blue-50/50 border-b flex justify-between items-center text-sm text-blue-800">
+                <div className="flex gap-4">
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 bg-red-500 rounded-sm"></span>{" "}
+                    國定假日 (禁休/雙薪)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 bg-red-50 rounded-sm border border-red-200"></span>{" "}
+                    週末
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 bg-slate-800 rounded-full"></span>{" "}
+                    人力警告 (閃爍)
+                  </span>
+                </div>
+                <div>目前員工數: {staffList.length} 人</div>
+              </div>
+              <ScheduleTable
+                currentMonth={currentMonth}
+                staffList={staffList}
+                schedules={schedules}
+                onUpdateShift={handleUpdateShift}
+                holidays={holidays}
+              />
+            </div>
+          )}
+          {currentTab === 1 && (
+            <StaffManager staffList={staffList} setStaffList={setStaffList} />
+          )}
+          {currentTab === 2 && (
+            <HolidayManager holidays={holidays} setHolidays={setHolidays} />
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
