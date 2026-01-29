@@ -1,7 +1,7 @@
-import { useState, type SetStateAction } from "react";
+import { useState } from "react";
 import "./App.css";
 
-import { Tabs, Tab, Box, TextField, Button } from "@mui/material";
+import { Tabs, Tab, Box, Button } from "@mui/material";
 import {
   Calendar,
   Users,
@@ -10,6 +10,11 @@ import {
   ChevronLeft,
   Layers,
 } from "lucide-react";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { addMonths, subMonths, format } from "date-fns";
+import { zhTW } from "date-fns/locale/zh-TW";
 import {
   GroupManager,
   HolidayManager,
@@ -19,7 +24,7 @@ import {
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState(0);
-  const [currentMonth, setCurrentMonth] = useState("2026-02");
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   // 初始資料
   const [staffList, setStaffList] = useState([
@@ -62,12 +67,13 @@ export default function App() {
 
   // 更新排班
   const handleUpdateShift = (staffId: string, day: string, value: string) => {
-    setSchedules((prev) => {
-      const monthData = prev[currentMonth] || {};
+    const currentMonthString = format(currentDate, "yyyy-MM");
+    setSchedules((prev: Record<string, any>) => {
+      const monthData = prev[currentMonthString] || {};
       const staffData = monthData[staffId] || {};
       return {
         ...prev,
-        [currentMonth]: {
+        [currentMonthString]: {
           ...monthData,
           [staffId]: { ...staffData, [day]: value },
         },
@@ -75,8 +81,12 @@ export default function App() {
     });
   };
 
-  const handleMonthChange = (e) => {
-    setCurrentMonth(e.target.value);
+  const handlePrevMonth = () => {
+    setCurrentDate((prevDate) => subMonths(prevDate, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate((prevDate) => addMonths(prevDate, 1));
   };
 
   return (
@@ -97,24 +107,38 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 bg-slate-100 p-1.5 rounded-lg">
-          <Button size="small" disabled startIcon={<ChevronLeft size={16} />}>
-            上個月
-          </Button>
-          <TextField
-            type="month"
-            value={currentMonth}
-            onChange={handleMonthChange}
-            variant="standard"
-            InputProps={{
-              disableUnderline: true,
-              className: "font-bold text-slate-700 mx-2",
-            }}
-          />
-          <Button size="small" disabled endIcon={<ChevronRight size={16} />}>
-            下個月
-          </Button>
-        </div>
+        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={zhTW}>
+          <div className="flex items-center gap-4 bg-slate-100 p-1.5 rounded-lg">
+            <Button
+              size="small"
+              startIcon={<ChevronLeft size={16} />}
+              onClick={handlePrevMonth}
+            >
+              上個月
+            </Button>
+            <DatePicker
+              views={["year", "month"]}
+              value={currentDate}
+              onChange={(newDate) => newDate && setCurrentDate(newDate)}
+              slotProps={{
+                textField: {
+                  variant: "standard",
+                  InputProps: {
+                    disableUnderline: true,
+                    className: "font-bold text-slate-700 mx-2",
+                  },
+                },
+              }}
+            />
+            <Button
+              size="small"
+              endIcon={<ChevronRight size={16} />}
+              onClick={handleNextMonth}
+            >
+              下個月
+            </Button>
+          </div>
+        </LocalizationProvider>
       </header>
 
       {/* 主要內容區 */}
@@ -169,7 +193,7 @@ export default function App() {
                 <div>目前員工數: {staffList.length} 人</div>
               </div>
               <ScheduleTable
-                currentMonth={currentMonth}
+                currentMonth={format(currentDate, "yyyy-MM")}
                 staffList={staffList}
                 groups={groups}
                 schedules={schedules}
