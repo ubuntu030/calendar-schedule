@@ -122,7 +122,7 @@ const sortStaff = (staffList: any[]) => {
 };
 
 // 工具：Tailwind Class 合併 (簡易版 clsx)
-const cn = (...classes: string[]) => classes.filter(Boolean).join(" ");
+const cn = (...classes: (string | boolean | undefined)[]) => classes.filter((c): c is string => typeof c === 'string').join(" ");
 
 /**
  * ============================================================================
@@ -161,6 +161,8 @@ const ScheduleTable = ({
     const [year, month] = currentMonth.split("-").map(Number);
     return getDaysInMonth(year, month);
   }, [currentMonth]);
+
+  const [hoveredColIndex, setHoveredColIndex] = useState<number | null>(null);
 
   /**
    * 日期格式化 (Local Time)
@@ -235,20 +237,26 @@ const ScheduleTable = ({
           </span>
         </div>
       </td>
-      {days.map((d) => {
+      {days.map((d, index) => {
         const dayStr = String(d.getDate()).padStart(2, "0");
-        const dateStr = formatDate(d);
         const shiftValue = schedules[currentMonth]?.[staff.id]?.[dayStr] || "";
         const holiday = getHoliday(d);
         const shiftConfig = SHIFT_OPTIONS.find((s) => s.value === shiftValue);
         const cellBg = shiftConfig?.value
           ? shiftConfig.color
           : holiday?.color?.split(" ")[0] || "";
+        const isHovered = hoveredColIndex === index;
 
         return (
           <td
             key={d.toISOString()}
-            className={cn("border-r border-b p-0 relative h-12", cellBg)}
+            className={cn(
+              "border-r border-b p-0 relative h-12",
+              cellBg,
+              isHovered && "bg-blue-50",
+            )}
+            onMouseEnter={() => setHoveredColIndex(index)}
+            onMouseLeave={() => setHoveredColIndex(null)}
           >
             <select
               value={shiftValue}
@@ -279,17 +287,21 @@ const ScheduleTable = ({
                 <AlertTriangle size={12} /> 規則提示
               </div>
             </th>
-            {days.map((d) => {
+            {days.map((d, index) => {
               const dateStr = formatDate(d);
               const holiday = getHoliday(d);
               const rule = checkRules(dateStr);
+              const isHovered = hoveredColIndex === index;
               return (
                 <th
                   key={d.toISOString()}
                   className={cn(
                     "border-b border-r text-xs relative h-10 min-w-[48px] transition-colors",
                     holiday?.color || "bg-slate-50",
+                    isHovered && "bg-blue-50",
                   )}
+                  onMouseEnter={() => setHoveredColIndex(index)}
+                  onMouseLeave={() => setHoveredColIndex(null)}
                 >
                   <div className="font-bold text-[10px] leading-tight px-1 truncate">
                     {holiday?.name}
