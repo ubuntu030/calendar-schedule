@@ -8,10 +8,14 @@ import {
   Settings,
   ChevronRight,
   ChevronLeft,
+  Layers,
 } from "lucide-react";
-import StaffManager from "./components/StaffManager";
-import HolidayManager from "./components/HolidayManager";
-import ScheduleTable from "./components/ScheduleTable";
+import {
+  GroupManager,
+  HolidayManager,
+  ScheduleTable,
+  StaffManager,
+} from "./components/SubComponent";
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState(0);
@@ -20,22 +24,44 @@ export default function App() {
   // 初始資料
   const [staffList, setStaffList] = useState([
     { id: "200043", name: "廖仁彥", title: "Chef" },
-    { id: "170142", name: "郭宜樺", title: "Sous chef" },
     { id: "190098", name: "羅雅今", title: "CDP" },
+    { id: "210028", name: "蔡幸秀", title: "Commis" },
+    { id: "240014", name: "柳家豪", title: "CDP" },
     { id: "220006", name: "黃瀚祈", title: "Demi CDP" },
+    { id: "220032", name: "陳麗幸", title: "Commis" },
     { id: "230023", name: "鄭博容", title: "Commis" },
+    { id: "N250022", name: "張心嵐", title: "Inter" },
     { id: "PT001", name: "鄭淨文", title: "PT" },
+    { id: "170142", name: "郭宜樺", title: "Sous chef" },
+    { id: "220070", name: "趙子晴", title: "CDP" },
+    { id: "210026", name: "湯美君", title: "Commis" },
+    { id: "N260005", name: "李晉丞", title: "Inter" },
+  ]);
+
+  // 分組資料狀態
+  const [groups, setGroups] = useState([
+    {
+      id: "g1",
+      name: "早班 (甜點)",
+      memberIds: ["200043", "190098", "210028"],
+    },
+    {
+      id: "g2",
+      name: "晚班 (甜點)",
+      memberIds: ["240014", "220006", "220032", "230023", "N250022", "PT001"],
+    },
+    {
+      id: "g3",
+      name: "麵包部",
+      memberIds: ["170142", "220070", "210026", "N260005"],
+    },
   ]);
 
   const [schedules, setSchedules] = useState({});
   const [holidays, setHolidays] = useState([]);
 
   // 更新排班
-  const handleUpdateShift = (
-    staffId: string | number,
-    day: any,
-    value: any,
-  ) => {
+  const handleUpdateShift = (staffId: string, day: string, value: string) => {
     setSchedules((prev) => {
       const monthData = prev[currentMonth] || {};
       const staffData = monthData[staffId] || {};
@@ -49,9 +75,7 @@ export default function App() {
     });
   };
 
-  const handleMonthChange = (e: {
-    target: { value: SetStateAction<string> };
-  }) => {
+  const handleMonthChange = (e) => {
     setCurrentMonth(e.target.value);
   };
 
@@ -67,7 +91,9 @@ export default function App() {
             <h1 className="text-xl font-bold text-slate-800">
               React 智能排班系統
             </h1>
-            <p className="text-xs text-slate-500">v1.0.0 (MUI + Tailwind)</p>
+            <p className="text-xs text-slate-500">
+              v1.1.0 (Groups + TypeScript JSDoc)
+            </p>
           </div>
         </div>
 
@@ -92,7 +118,7 @@ export default function App() {
       </header>
 
       {/* 主要內容區 */}
-      <main className="max-w-7xl mx-auto mt-6 px-4">
+      <main className="max-w-[1400px] mx-auto mt-6 px-4">
         <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
           <Tabs
             value={currentTab}
@@ -103,6 +129,11 @@ export default function App() {
               icon={<Calendar size={18} />}
               iconPosition="start"
               label="排班總表"
+            />
+            <Tab
+              icon={<Layers size={18} />}
+              iconPosition="start"
+              label="分組設定"
             />
             <Tab
               icon={<Users size={18} />}
@@ -140,6 +171,7 @@ export default function App() {
               <ScheduleTable
                 currentMonth={currentMonth}
                 staffList={staffList}
+                groups={groups}
                 schedules={schedules}
                 onUpdateShift={handleUpdateShift}
                 holidays={holidays}
@@ -147,9 +179,16 @@ export default function App() {
             </div>
           )}
           {currentTab === 1 && (
-            <StaffManager staffList={staffList} setStaffList={setStaffList} />
+            <GroupManager
+              groups={groups}
+              setGroups={setGroups}
+              staffList={staffList}
+            />
           )}
           {currentTab === 2 && (
+            <StaffManager staffList={staffList} setStaffList={setStaffList} />
+          )}
+          {currentTab === 3 && (
             <HolidayManager holidays={holidays} setHolidays={setHolidays} />
           )}
         </div>
