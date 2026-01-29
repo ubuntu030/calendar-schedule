@@ -172,7 +172,7 @@ export default function App() {
           </Tabs>
         </Box>
 
-        <div className="bg-white rounded-xl shadow-lg border min-h-[600px] flex flex-col">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 min-h-[600px] flex flex-col">
           {currentTab === 0 && (
             <div className="p-0 flex-1 flex flex-col">
               <div className="p-4 bg-blue-50/50 border-b flex justify-between items-center text-sm text-blue-800">

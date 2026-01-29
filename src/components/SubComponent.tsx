@@ -1,8 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import {
-  Tabs,
-  Tab,
-  Box,
   TextField,
   Button,
   Card,
@@ -12,26 +9,15 @@ import {
   InputLabel,
   FormControl,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
 } from "@mui/material";
 import {
-  Calendar,
-  Users,
-  Settings,
   AlertTriangle,
   Save,
   Upload,
   Plus,
   Trash2,
-  ChevronRight,
-  ChevronLeft,
   Layers,
-  UserPlus,
-  UserMinus,
   X,
 } from "lucide-react";
 
@@ -122,7 +108,8 @@ const sortStaff = (staffList: any[]) => {
 };
 
 // 工具：Tailwind Class 合併 (簡易版 clsx)
-const cn = (...classes: (string | boolean | undefined)[]) => classes.filter((c): c is string => typeof c === 'string').join(" ");
+const cn = (...classes: (string | boolean | undefined)[]) =>
+  classes.filter((c): c is string => typeof c === "string").join(" ");
 
 /**
  * ============================================================================
@@ -220,7 +207,7 @@ const ScheduleTable = ({
    */
   const renderStaffRow = (staff: any) => (
     <tr key={staff.id} className="hover:bg-blue-50 group transition-colors">
-      <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-b p-2 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
+      <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-b border-gray-200 p-2 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
         <div className="flex justify-between items-center">
           <span className="font-bold text-slate-700">{staff.name}</span>
           <span
@@ -251,7 +238,7 @@ const ScheduleTable = ({
           <td
             key={d.toISOString()}
             className={cn(
-              "border-r border-b p-0 relative h-12",
+              "border-r border-b border-gray-200 p-0 relative h-12",
               cellBg,
               isHovered && "bg-blue-50",
             )}
@@ -277,12 +264,12 @@ const ScheduleTable = ({
   );
 
   return (
-    <div className="flex-1 overflow-auto border rounded-lg shadow-inner bg-white relative">
+    <div className="flex-1 overflow-auto border border-gray-200 rounded-lg shadow-inner bg-white relative">
       <table className="min-w-full border-collapse text-sm">
         <thead className="sticky top-0 z-30 bg-white shadow-sm">
           {/* 節日資訊列 */}
           <tr>
-            <th className="sticky left-0 top-0 z-40 bg-slate-50 border-b border-r min-w-[140px] p-2 text-left text-xs font-normal text-gray-500">
+            <th className="sticky left-0 top-0 z-40 bg-slate-50 border-b border-r border-gray-200 min-w-[140px] p-2 text-left text-xs font-normal text-gray-500">
               <div className="flex items-center gap-1">
                 <AlertTriangle size={12} /> 規則提示
               </div>
@@ -296,7 +283,7 @@ const ScheduleTable = ({
                 <th
                   key={d.toISOString()}
                   className={cn(
-                    "border-b border-r text-xs relative h-10 min-w-[48px] transition-colors",
+                    "border-b border-r border-gray-200 text-xs relative h-10 min-w-[48px] transition-colors",
                     holiday?.color || "bg-slate-50",
                     isHovered && "bg-blue-50",
                   )}
@@ -352,7 +339,7 @@ const ScheduleTable = ({
                 <tr>
                   <td
                     colSpan={days.length + 1}
-                    className="h-6 bg-slate-100 border-b border-t text-xs text-slate-400 pl-4 font-bold tracking-wider"
+                    className="h-6 bg-slate-100 border-b border-t border-gray-200 text-xs text-slate-400 pl-4 font-bold tracking-wider"
                   >
                     --- {group.name} ---
                   </td>
@@ -473,8 +460,8 @@ const GroupManager = ({
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-8 p-6 bg-white rounded-xl shadow-sm border">
+    <div className="p-6 max-w-5xl mx-auto border-gray-200">
+      <div className="mb-8 p-6 bg-white rounded-xl shadow-sm border border-gray-200">
         <Typography variant="h6" className="flex items-center gap-2 mb-4">
           <Layers size={20} className="text-blue-600" /> 新增分組
         </Typography>
@@ -501,10 +488,10 @@ const GroupManager = ({
         {groups.map((group) => (
           <Card
             key={group.id}
-            className="p-4 bg-slate-50 border shadow-sm flex flex-col h-[400px]"
+            className="p-4 bg-slate-50 border border-gray-200 shadow-sm flex flex-col h-[400px]"
           >
             {/* Header: 組名編輯與刪除 */}
-            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
               <input
                 className="font-bold text-lg bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-slate-800 w-full mr-2"
                 value={group.name}
@@ -566,7 +553,7 @@ const GroupManager = ({
             </div>
 
             {/* Footer: 新增成員 */}
-            <div className="pt-2 border-t border-slate-200">
+            <div className="pt-2 border-t border-gray-200">
               <FormControl size="small" fullWidth>
                 <InputLabel>加入成員...</InputLabel>
                 <Select
@@ -673,7 +660,7 @@ const StaffManager = ({
         </div>
       </Card>
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-slate-100 text-slate-600 text-sm uppercase font-semibold">
             <tr>
@@ -786,7 +773,7 @@ const HolidayManager = ({
           {`{ "西元日期": "20260101", "是否放假": "2", "備註": "..." }`}
         </Typography>
         <textarea
-          className="w-full h-48 p-3 border rounded-lg font-mono text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
+          className="w-full h-48 p-3 border border-gray-200 rounded-lg font-mono text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
           placeholder="在此貼上 JSON..."
           value={jsonInput}
           onChange={(e) => setJsonInput(e.target.value)}
@@ -801,8 +788,8 @@ const HolidayManager = ({
         </Button>
       </div>
 
-      <div className="border rounded-lg overflow-hidden flex flex-col h-[400px]">
-        <div className="bg-slate-100 p-3 font-semibold border-b">
+      <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col h-[400px]">
+        <div className="bg-slate-100 p-3 font-semibold border-b border-gray-200">
           已登錄節日 ({holidays.length})
         </div>
         <div className="overflow-y-auto flex-1 p-2 space-y-2">
@@ -812,7 +799,7 @@ const HolidayManager = ({
           {holidays.map((h) => (
             <div
               key={h.date}
-              className="flex justify-between items-center p-2 border rounded hover:bg-slate-50"
+              className="flex justify-between items-center p-2 border border-gray-200 rounded hover:bg-slate-50"
             >
               <div className="flex items-center gap-3">
                 <span className="font-mono text-slate-500 text-sm">
