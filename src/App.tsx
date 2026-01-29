@@ -32,7 +32,7 @@ export default function App() {
     { id: "190098", name: "羅雅今", title: "CDP" },
     { id: "210028", name: "蔡幸秀", title: "Commis" },
     { id: "240014", name: "柳家豪", title: "CDP" },
-    { id: "220006", name: "黃瀚祈", title: "Demi CDP" },
+    { id: "220006", name: "黃瀞祈", title: "Demi CDP" },
     { id: "220032", name: "陳麗幸", title: "Commis" },
     { id: "230023", name: "鄭博容", title: "Commis" },
     { id: "N250022", name: "張心嵐", title: "Inter" },
@@ -90,9 +90,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-10">
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={zhTW}>
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-10">
       {/* 頂部導航 */}
-      <header className="bg-white border-b px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-0 z-50 shadow-sm">
+        <header className="bg-white border-b px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-2">
           <div className="bg-blue-600 p-2 rounded-lg text-white">
             <Calendar size={24} />
@@ -107,7 +108,6 @@ export default function App() {
           </div>
         </div>
 
-        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={zhTW}>
           <div className="flex items-center gap-4 bg-slate-100 p-1.5 rounded-lg">
             <Button
               size="small"
@@ -138,7 +138,6 @@ export default function App() {
               下個月
             </Button>
           </div>
-        </LocalizationProvider>
       </header>
 
       {/* 主要內容區 */}
@@ -218,5 +217,6 @@ export default function App() {
         </div>
       </main>
     </div>
+    </LocalizationProvider>
   );
 }

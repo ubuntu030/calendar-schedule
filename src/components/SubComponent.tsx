@@ -10,6 +10,7 @@ import {
   FormControl,
   Chip,
   IconButton,
+  Stack,
 } from "@mui/material";
 import {
   AlertTriangle,
@@ -19,7 +20,10 @@ import {
   Trash2,
   Layers,
   X,
+  Edit,
 } from "lucide-react";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { format } from "date-fns";
 
 /**
  * ============================================================================
@@ -715,18 +719,62 @@ const HolidayManager = ({
   setHolidays: any;
 }) => {
   const [jsonInput, setJsonInput] = useState("");
+  const [formData, setFormData] = useState({
+    date: "",
+    name: "",
+    type: "NATIONAL",
+  });
+
+  const handleSaveManual = () => {
+    if (!formData.date) {
+      alert("請選擇日期");
+      return;
+    }
+
+    const colorClass =
+      formData.type === "NATIONAL"
+        ? "bg-red-500 text-white"
+        : "bg-red-50 text-red-500";
+
+    const newHoliday = {
+      date: formData.date,
+      name: formData.name,
+      isOff: "2",
+      color: colorClass,
+      type: formData.type,
+    };
+
+    setHolidays((prev: any[]) => {
+      const filtered = prev.filter((h) => h.date !== formData.date);
+      return [...filtered, newHoliday].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+    });
+
+    setFormData({ date: "", name: "", type: "NATIONAL" });
+  };
+
+  const handleEdit = (h: any) => {
+    setFormData({
+      date: h.date,
+      name: h.name || "",
+      type: h.type === "WEEKEND" ? "WEEKEND" : "NATIONAL",
+    });
+  };
 
   const handleImport = () => {
     try {
       const parsed = JSON.parse(jsonInput);
-      const newHolidays = parsed.map((item: any) => {
-        // 轉換 20260101 -> 2026-01-01
-        const d = item.西元日期;
-        const dateStr = `${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)}`;
+      const newHolidays = parsed
+        .filter((item: any) => item.是否放假 === "2")
+        .map((item: any) => {
+          // 轉換 20260101 -> 2026-01-01
+          const d = item.西元日期;
+          const dateStr = `${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)}`;
 
-        let colorClass = "";
-        let type = "NORMAL";
-        if (item.是否放假 === "2") {
+          let colorClass = "";
+          let type = "NORMAL";
+
           if (item.備註) {
             colorClass = "bg-red-500 text-white"; // 國定假日
             type = "NATIONAL";
@@ -734,15 +782,14 @@ const HolidayManager = ({
             colorClass = "bg-red-50 text-red-500"; // 週末
             type = "WEEKEND";
           }
-        }
-        return {
-          date: dateStr,
-          name: item.備註,
-          isOff: item.是否放假,
-          color: colorClass,
-          type,
-        };
-      });
+          return {
+            date: dateStr,
+            name: item.備註,
+            isOff: item.是否放假,
+            color: colorClass,
+            type,
+          };
+        });
 
       // 合併去重
       const merged = [...holidays, ...newHolidays].reduce((acc, curr) => {
@@ -764,7 +811,57 @@ const HolidayManager = ({
 
   return (
     <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <div className="space-y-4">
+      <div className="space-y-6">
+        <Card className="p-4 bg-white shadow-sm border border-gray-200">
+          <Typography variant="h6" className="flex items-center gap-2 mb-4">
+            <Plus size={20} className="text-blue-600" /> 手動新增/編輯
+          </Typography>
+          <Stack spacing={2}>
+            <DatePicker
+              label="日期"
+              value={formData.date ? new Date(formData.date) : null}
+              onChange={(newValue) =>
+                setFormData({
+                  ...formData,
+                  date: newValue ? format(newValue, "yyyy-MM-dd") : "",
+                })
+              }
+              slotProps={{ textField: { size: "small", fullWidth: true } }}
+            />
+            <TextField
+              label="節日名稱 (選填)"
+              size="small"
+              fullWidth
+              value={formData.name}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
+            />
+            <FormControl size="small" fullWidth>
+              <InputLabel>類型</InputLabel>
+              <Select
+                value={formData.type}
+                label="類型"
+                onChange={(e) =>
+                  setFormData({ ...formData, type: e.target.value })
+                }
+              >
+                <MenuItem value="NATIONAL">國定假日 (紅底白字)</MenuItem>
+                <MenuItem value="WEEKEND">週末/其他 (白底紅字)</MenuItem>
+              </Select>
+            </FormControl>
+            <Button
+              variant="contained"
+              fullWidth
+              onClick={handleSaveManual}
+              startIcon={<Save size={16} />}
+            >
+              儲存節日
+            </Button>
+          </Stack>
+        </Card>
+
+        <div className="space-y-4">
         <Typography variant="h6" className="flex items-center gap-2">
           <Upload size={20} /> JSON 自動匯入
         </Typography>
@@ -786,9 +883,10 @@ const HolidayManager = ({
         >
           解析並儲存
         </Button>
+        </div>
       </div>
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col h-[400px]">
+      <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col h-[600px]">
         <div className="bg-slate-100 p-3 font-semibold border-b border-gray-200">
           已登錄節日 ({holidays.length})
         </div>
@@ -816,17 +914,27 @@ const HolidayManager = ({
                   <span className="text-xs text-gray-400">週末</span>
                 )}
               </div>
-              <Button
-                size="small"
-                color="error"
-                onClick={() =>
-                  setHolidays((prev: any[]) =>
-                    prev.filter((x) => x.date !== h.date),
-                  )
-                }
-              >
-                <Trash2 size={14} />
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  size="small"
+                  onClick={() => handleEdit(h)}
+                  style={{ minWidth: "30px" }}
+                >
+                  <Edit size={14} className="text-blue-500" />
+                </Button>
+                <Button
+                  size="small"
+                  color="error"
+                  onClick={() =>
+                    setHolidays((prev: any[]) =>
+                      prev.filter((x) => x.date !== h.date),
+                    )
+                  }
+                  style={{ minWidth: "30px" }}
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
