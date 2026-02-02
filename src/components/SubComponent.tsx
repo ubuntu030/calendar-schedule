@@ -913,11 +913,15 @@ const HolidayManager = ({
     });
   };
 
-  const handleImport = () => {
+  const handleImport = (onlySpecial = false) => {
     try {
       const parsed = JSON.parse(jsonInput);
       const newHolidays = parsed
-        .filter((item: any) => item.是否放假 === "2")
+        .filter((item: any) => {
+          if (item.是否放假 !== "2") return false;
+          if (onlySpecial && !item.備註) return false;
+          return true;
+        })
         .map((item: any) => {
           // 轉換 20260101 -> 2026-01-01
           const d = item.西元日期;
@@ -927,7 +931,7 @@ const HolidayManager = ({
           let type = "NORMAL";
 
           if (item.備註) {
-            colorClass = "bg-red-500 text-white"; // 國定假日
+            colorClass = "bg-red-400 text-white"; // 國定假日
             type = "NATIONAL";
           } else {
             colorClass = "bg-red-50 text-red-500"; // 週末
@@ -1026,14 +1030,24 @@ const HolidayManager = ({
             value={jsonInput}
             onChange={(e) => setJsonInput(e.target.value)}
           />
-          <Button
-            variant="contained"
-            startIcon={<Save size={16} />}
-            onClick={handleImport}
-            fullWidth
-          >
-            解析並儲存
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="contained"
+              startIcon={<Save size={16} />}
+              onClick={() => handleImport(false)}
+              fullWidth
+            >
+              解析並儲存
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<Save size={16} />}
+              onClick={() => handleImport(true)}
+              fullWidth
+            >
+              解析並儲存 (特殊節日)
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1132,10 +1146,10 @@ const ShiftManager = ({
     setStartMonthStr(format(addMonths(date, 1), "yyyy-MM"));
   };
 
-  // 計算要顯示的三個月份
+  // 計算要顯示的四個月份
   const monthsToDisplay = useMemo(() => {
     const start = getMonthDate(startMonthStr);
-    return [0, 1, 2].map((offset) =>
+    return [0, 1, 2, 3].map((offset) =>
       format(addMonths(start, offset), "yyyy-MM"),
     );
   }, [startMonthStr]);
@@ -1190,7 +1204,7 @@ const ShiftManager = ({
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {monthsToDisplay.map((month) => {
           const monthConfig = config[month] || {
             regular: 4,
@@ -1199,15 +1213,22 @@ const ShiftManager = ({
           };
           const totalDays =
             monthConfig.regular + monthConfig.leave + monthConfig.national;
+          const isCurrent = month === currentMonth;
 
           return (
             <Card
               key={month}
-              className="p-4 bg-white shadow-sm border border-gray-200 flex flex-col"
+              className={cn(
+                "p-4 shadow-sm border flex flex-col",
+                isCurrent ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200",
+              )}
             >
               <div className="mb-4 pb-2 border-b border-gray-100 flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <Typography variant="h6" className="text-slate-800 font-bold">
+                  <Typography
+                    variant="h6"
+                    className={cn("font-bold", isCurrent ? "text-blue-700" : "text-slate-800")}
+                  >
                     {month}
                   </Typography>
                   <IconButton
