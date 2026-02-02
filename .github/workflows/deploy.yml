@@ -1,0 +1,76 @@
+# GitHub Actions for deploying to GitHub Pages
+# 用於部署到 GitHub Pages 的 GitHub Actions
+name: Deploy to GitHub Pages
+
+# 觸發條件：當 push 到 main 分支時觸發
+# Triggers the workflow on push events but only for the main branch
+on:
+  push:
+    branches:
+      - main
+
+# 工作流程權限設定
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 工作流程任務
+# Jobs
+jobs:
+  # 部署任務
+  # Deploy job
+  deploy:
+    # 允許併發部署
+    concurrency:
+      group: "pages"
+      cancel-in-progress: true
+    # 運行環境
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    # 步驟
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # 步驟一：簽出程式碼
+      # Step 1: Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 步驟二：設定 Node.js 環境
+      # Step 2: Set up Node.js environment
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      # 步驟三：安裝依賴
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # 步驟四：建置專案
+      # Step 4: Build the project
+      - name: Build
+        run: npm run build
+
+      # 步驟五：設定 GitHub Pages
+      # Step 5: Setup Pages
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      # 步驟六：上傳建置好的文件
+      # Step 6: Upload artifact
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # 從 dist 目錄上傳
+          # Upload from the dist directory
+          path: "./dist"
+
+      # 步驟七：部署到 GitHub Pages
+      # Step 7: Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

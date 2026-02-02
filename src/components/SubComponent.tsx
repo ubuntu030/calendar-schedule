@@ -468,7 +468,7 @@ const ScheduleTable = ({
         </thead>
         <tbody>
           {/* 1. 渲染分組員工 */}
-          {groups.map((group, index) => {
+          {groups.map((group) => {
             // 取得該群組的員工並排序
             const groupStaff = staffList.filter((s) =>
               group.memberIds.includes(s.id),
