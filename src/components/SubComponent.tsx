@@ -74,6 +74,18 @@ const TITLE_WEIGHTS = {
   PT: 7,
 };
 
+// 職位標籤顏色
+const getTitleColor = (title: string) => {
+  if (title === "Chef" || title === "Sous chef")
+    return "bg-red-100 text-red-700";
+  if (title === "CDP" || title === "Demi CDP")
+    return "bg-blue-100 text-blue-700";
+  if (title === "Commis") return "bg-green-100 text-green-700";
+  if (title === "Inter") return "bg-orange-100 text-orange-800";
+  if (title === "PT") return "bg-gray-100 text-gray-600";
+  return "bg-slate-100 text-slate-700";
+};
+
 // 班別選項設定
 const SHIFT_OPTIONS = [
   { value: "", label: "", color: "bg-transparent" },
@@ -294,28 +306,26 @@ const ScheduleTable = ({
                 </div>
               </Tooltip>
             </div>
-          <span
-            className={cn(
-              "text-[10px] px-1.5 py-0.5 rounded font-mono",
-              staff.title === "Chef"
-                ? "bg-red-100 text-red-700"
-                : staff.title === "PT"
-                  ? "bg-gray-100 text-gray-600"
-                  : "bg-blue-100 text-blue-700",
-            )}
-          >
-            {staff.title}
-          </span>
-        </div>
+            <span
+              className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded font-mono",
+                getTitleColor(staff.title),
+              )}
+            >
+              {staff.title}
+            </span>
+          </div>
         </td>
         {days.map((d, index) => {
           const dayStr = String(d.getDate()).padStart(2, "0");
-          const shiftValue = schedules[currentMonth]?.[staff.id]?.[dayStr] || "";
+          const shiftValue =
+            schedules[currentMonth]?.[staff.id]?.[dayStr] || "";
           const holiday = getHoliday(d);
+          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
           const shiftConfig = SHIFT_OPTIONS.find((s) => s.value === shiftValue);
           const cellBg = shiftConfig?.value
             ? shiftConfig.color
-            : holiday?.color?.split(" ")[0] || "";
+            : holiday?.color?.split(" ")[0] || (isWeekend ? "bg-red-50" : "");
           const isHovered = hoveredColIndex === index;
 
           return (
@@ -331,7 +341,9 @@ const ScheduleTable = ({
             >
               <select
                 value={shiftValue}
-                onChange={(e) => onUpdateShift(staff.id, dayStr, e.target.value)}
+                onChange={(e) =>
+                  onUpdateShift(staff.id, dayStr, e.target.value)
+                }
                 className="w-full h-full bg-transparent text-center appearance-none cursor-pointer focus:outline-none focus:bg-white/50 font-bold text-sm z-10 relative"
                 style={{ textAlignLast: "center" }}
               >
@@ -364,12 +376,14 @@ const ScheduleTable = ({
               const holiday = getHoliday(d);
               const rule = checkRules(dateStr);
               const isHovered = hoveredColIndex === index;
+              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
               return (
                 <th
                   key={d.toISOString()}
                   className={cn(
                     "border-b border-r border-gray-200 text-xs relative h-10 min-w-[48px] transition-colors",
-                    holiday?.color || "bg-slate-50",
+                    holiday?.color ||
+                      (isWeekend ? "bg-red-50 text-red-500" : "bg-slate-50"),
                     isHovered && "bg-blue-50",
                   )}
                   onMouseEnter={() => setHoveredColIndex(index)}
@@ -657,9 +671,19 @@ const GroupManager = ({
                         <span
                           className={cn(
                             "w-2 h-2 rounded-full",
-                            staff.title.includes("Chef")
-                              ? "bg-red-400"
-                              : "bg-blue-400",
+                            staff.title === "Chef" ||
+                              staff.title === "Sous chef"
+                              ? "bg-red-500"
+                              : staff.title === "CDP" ||
+                                  staff.title === "Demi CDP"
+                                ? "bg-blue-500"
+                                : staff.title === "Commis"
+                                  ? "bg-green-500"
+                                  : staff.title === "Inter"
+                                    ? "bg-orange-500"
+                                    : staff.title === "PT"
+                                      ? "bg-gray-500"
+                                      : "bg-slate-400",
                           )}
                         ></span>
                         <span className="font-bold">{staff.name}</span>
@@ -808,13 +832,14 @@ const StaffManager = ({
                   {idx + 1}
                 </td>
                 <td className="p-3">
-                  <Chip
-                    label={s.title}
-                    size="small"
-                    className={
-                      s.title === "Chef" ? "bg-red-100 text-red-700" : ""
-                    }
-                  />
+                  <span
+                    className={cn(
+                      "px-2 py-1 rounded text-xs font-bold",
+                      getTitleColor(s.title),
+                    )}
+                  >
+                    {s.title}
+                  </span>
                 </td>
                 <td className="p-3 font-medium">{s.name}</td>
                 <td className="p-3 text-slate-500 font-mono text-sm">{s.id}</td>
@@ -1118,8 +1143,8 @@ const ShiftManager = ({
   const handleChange = (month: string, type: string, val: string) => {
     const num = parseInt(val) || 0;
     const monthConfig = config[month] || {
-      regular: 8,
-      leave: 0,
+      regular: 4,
+      leave: 4,
       national: 0,
     };
     setConfig({
@@ -1168,8 +1193,8 @@ const ShiftManager = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {monthsToDisplay.map((month) => {
           const monthConfig = config[month] || {
-            regular: 8,
-            leave: 0,
+            regular: 4,
+            leave: 4,
             national: 0,
           };
           const totalDays =
