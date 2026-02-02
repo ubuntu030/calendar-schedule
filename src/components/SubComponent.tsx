@@ -866,7 +866,13 @@ const HolidayManager = ({
   holidays,
   setHolidays,
 }: {
-  holidays: any[];
+  holidays: {
+    date: string;
+    name: string;
+    isOff: string;
+    color: string;
+    type: string;
+  }[];
   setHolidays: any;
 }) => {
   const [jsonInput, setJsonInput] = useState("");
@@ -1220,14 +1226,19 @@ const ShiftManager = ({
               key={month}
               className={cn(
                 "p-4 shadow-sm border flex flex-col",
-                isCurrent ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200",
+                isCurrent
+                  ? "bg-blue-50 border-blue-300"
+                  : "bg-white border-gray-200",
               )}
             >
               <div className="mb-4 pb-2 border-b border-gray-100 flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Typography
                     variant="h6"
-                    className={cn("font-bold", isCurrent ? "text-blue-700" : "text-slate-800")}
+                    className={cn(
+                      "font-bold",
+                      isCurrent ? "text-blue-700" : "text-slate-800",
+                    )}
                   >
                     {month}
                   </Typography>
