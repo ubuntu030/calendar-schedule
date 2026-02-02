@@ -70,7 +70,7 @@ const TITLE_WEIGHTS = {
 
 // 班別選項設定
 const SHIFT_OPTIONS = [
-  { value: "", label: "-", color: "bg-transparent" },
+  { value: "", label: "", color: "bg-transparent" },
   { value: "早", label: "早", color: "bg-blue-100 text-blue-800 font-bold" },
   {
     value: "晚",
@@ -81,6 +81,11 @@ const SHIFT_OPTIONS = [
     value: "全",
     label: "全",
     color: "bg-purple-100 text-purple-800 font-bold",
+  },
+  {
+    value: "國",
+    label: "國",
+    color: "bg-orange-100 text-orange-800 font-bold",
   },
   { value: "例", label: "例", color: "bg-gray-200 text-gray-500" },
   {
@@ -862,27 +867,27 @@ const HolidayManager = ({
         </Card>
 
         <div className="space-y-4">
-        <Typography variant="h6" className="flex items-center gap-2">
-          <Upload size={20} /> JSON 自動匯入
-        </Typography>
-        <Typography variant="body2" className="text-gray-500">
-          支援格式:{" "}
-          {`{ "西元日期": "20260101", "是否放假": "2", "備註": "..." }`}
-        </Typography>
-        <textarea
-          className="w-full h-48 p-3 border border-gray-200 rounded-lg font-mono text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-          placeholder="在此貼上 JSON..."
-          value={jsonInput}
-          onChange={(e) => setJsonInput(e.target.value)}
-        />
-        <Button
-          variant="contained"
-          startIcon={<Save size={16} />}
-          onClick={handleImport}
-          fullWidth
-        >
-          解析並儲存
-        </Button>
+          <Typography variant="h6" className="flex items-center gap-2">
+            <Upload size={20} /> JSON 自動匯入
+          </Typography>
+          <Typography variant="body2" className="text-gray-500">
+            支援格式:{" "}
+            {`{ "西元日期": "20260101", "是否放假": "2", "備註": "..." }`}
+          </Typography>
+          <textarea
+            className="w-full h-48 p-3 border border-gray-200 rounded-lg font-mono text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="在此貼上 JSON..."
+            value={jsonInput}
+            onChange={(e) => setJsonInput(e.target.value)}
+          />
+          <Button
+            variant="contained"
+            startIcon={<Save size={16} />}
+            onClick={handleImport}
+            fullWidth
+          >
+            解析並儲存
+          </Button>
         </div>
       </div>
 
