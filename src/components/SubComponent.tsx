@@ -11,6 +11,7 @@ import {
   Chip,
   IconButton,
   Stack,
+  Tooltip,
 } from "@mui/material";
 import {
   AlertTriangle,
@@ -21,9 +22,14 @@ import {
   Layers,
   X,
   Edit,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  AlertCircle,
 } from "lucide-react";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import { format } from "date-fns";
+import { format, addMonths, subMonths } from "date-fns";
 
 /**
  * ============================================================================
@@ -136,6 +142,7 @@ const cn = (...classes: (string | boolean | undefined)[]) =>
  * @param {Object} props.schedules - 排班數據
  * @param {Function} props.onUpdateShift - 更新排班函式
  * @param {Holiday[]} props.holidays - 節日列表
+ * @param {Object} props.monthlyConfig - 每月假別設定
  */
 const ScheduleTable = ({
   currentMonth,
@@ -144,6 +151,7 @@ const ScheduleTable = ({
   schedules,
   onUpdateShift,
   holidays,
+  monthlyConfig = {},
 }: {
   currentMonth: string;
   staffList: any[];
@@ -151,6 +159,7 @@ const ScheduleTable = ({
   schedules: any;
   onUpdateShift: any;
   holidays: any[];
+  monthlyConfig?: any;
 }) => {
   // 計算當月日期
   const days = useMemo(() => {
@@ -214,11 +223,77 @@ const ScheduleTable = ({
    * 渲染單一員工列
    * @param {Staff} staff
    */
-  const renderStaffRow = (staff: any) => (
-    <tr key={staff.id} className="hover:bg-blue-50 group transition-colors">
-      <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-b border-gray-200 p-2 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
-        <div className="flex justify-between items-center">
-          <span className="font-bold text-slate-700">{staff.name}</span>
+  const renderStaffRow = (staff: any) => {
+    // 計算該員工目前的休假總數
+    const staffShifts = schedules[currentMonth]?.[staff.id] || {};
+    let regularCount = 0;
+    let leaveCount = 0;
+    let nationalCount = 0;
+    let morningCount = 0;
+    let eveningCount = 0;
+    let fullCount = 0;
+
+    Object.values(staffShifts).forEach((v: any) => {
+      if (v === "例") regularCount++;
+      if (v === "休") leaveCount++;
+      if (v === "國") nationalCount++;
+      if (v === "早") morningCount++;
+      if (v === "晚") eveningCount++;
+      if (v === "全") fullCount++;
+    });
+
+    // 取得當月設定目標
+    const mConfig = monthlyConfig[currentMonth] || {
+      regular: 4,
+      leave: 4,
+      national: 0,
+    };
+
+    const isOver =
+      regularCount > mConfig.regular ||
+      leaveCount > mConfig.leave ||
+      nationalCount > mConfig.national;
+
+    const getStatusColor = (count: number, limit: number) => {
+      if (count > limit) return "text-red-300 font-bold";
+      if (count === limit) return "text-gray-400";
+      return "text-white";
+    };
+
+    const TooltipContent = (
+      <div className="flex flex-col gap-1 text-xs">
+        <div className="text-blue-200 font-bold">早班: {morningCount}</div>
+        <div className="text-indigo-200 font-bold">晚班: {eveningCount}</div>
+        <div className="text-purple-200 font-bold">全日: {fullCount}</div>
+        <div className="my-1 border-t border-gray-600"></div>
+        <div className={getStatusColor(regularCount, mConfig.regular)}>
+          例: {regularCount}/{mConfig.regular}
+        </div>
+        <div className={getStatusColor(leaveCount, mConfig.leave)}>
+          休: {leaveCount}/{mConfig.leave}
+        </div>
+        <div className={getStatusColor(nationalCount, mConfig.national)}>
+          國: {nationalCount}/{mConfig.national}
+        </div>
+      </div>
+    );
+
+    return (
+      <tr key={staff.id} className="hover:bg-blue-50 group transition-colors">
+        <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-b border-gray-200 p-2 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-1">
+              <Tooltip title={TooltipContent} arrow placement="right">
+                <div className="flex items-center gap-1 cursor-help">
+                  <span className="font-bold text-slate-700">{staff.name}</span>
+                  {isOver && (
+                    <div className="text-red-500 flex items-center">
+                      <AlertCircle size={14} />
+                    </div>
+                  )}
+                </div>
+              </Tooltip>
+            </div>
           <span
             className={cn(
               "text-[10px] px-1.5 py-0.5 rounded font-mono",
@@ -232,45 +307,46 @@ const ScheduleTable = ({
             {staff.title}
           </span>
         </div>
-      </td>
-      {days.map((d, index) => {
-        const dayStr = String(d.getDate()).padStart(2, "0");
-        const shiftValue = schedules[currentMonth]?.[staff.id]?.[dayStr] || "";
-        const holiday = getHoliday(d);
-        const shiftConfig = SHIFT_OPTIONS.find((s) => s.value === shiftValue);
-        const cellBg = shiftConfig?.value
-          ? shiftConfig.color
-          : holiday?.color?.split(" ")[0] || "";
-        const isHovered = hoveredColIndex === index;
+        </td>
+        {days.map((d, index) => {
+          const dayStr = String(d.getDate()).padStart(2, "0");
+          const shiftValue = schedules[currentMonth]?.[staff.id]?.[dayStr] || "";
+          const holiday = getHoliday(d);
+          const shiftConfig = SHIFT_OPTIONS.find((s) => s.value === shiftValue);
+          const cellBg = shiftConfig?.value
+            ? shiftConfig.color
+            : holiday?.color?.split(" ")[0] || "";
+          const isHovered = hoveredColIndex === index;
 
-        return (
-          <td
-            key={d.toISOString()}
-            className={cn(
-              "border-r border-b border-gray-200 p-0 relative h-12",
-              cellBg,
-              isHovered && "bg-blue-50",
-            )}
-            onMouseEnter={() => setHoveredColIndex(index)}
-            onMouseLeave={() => setHoveredColIndex(null)}
-          >
-            <select
-              value={shiftValue}
-              onChange={(e) => onUpdateShift(staff.id, dayStr, e.target.value)}
-              className="w-full h-full bg-transparent text-center appearance-none cursor-pointer focus:outline-none focus:bg-white/50 font-bold text-sm z-10 relative"
-              style={{ textAlignLast: "center" }}
+          return (
+            <td
+              key={d.toISOString()}
+              className={cn(
+                "border-r border-b border-gray-200 p-0 relative h-12",
+                cellBg,
+                isHovered && "bg-blue-50",
+              )}
+              onMouseEnter={() => setHoveredColIndex(index)}
+              onMouseLeave={() => setHoveredColIndex(null)}
             >
-              {SHIFT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </td>
-        );
-      })}
-    </tr>
-  );
+              <select
+                value={shiftValue}
+                onChange={(e) => onUpdateShift(staff.id, dayStr, e.target.value)}
+                className="w-full h-full bg-transparent text-center appearance-none cursor-pointer focus:outline-none focus:bg-white/50 font-bold text-sm z-10 relative"
+                style={{ textAlignLast: "center" }}
+              >
+                {SHIFT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
 
   return (
     <div className="flex-1 overflow-auto border border-gray-200 rounded-lg shadow-inner bg-white relative">
@@ -318,17 +394,62 @@ const ScheduleTable = ({
             <th className="sticky left-0 top-10 z-40 bg-slate-800 p-2 text-left border-r border-slate-600">
               員工 (職稱)
             </th>
-            {days.map((d) => (
-              <th
-                key={d.toISOString()}
-                className="border-r border-slate-600 p-1 text-center font-mono w-12"
-              >
-                <div className="text-sm font-bold">{d.getDate()}</div>
-                <div className="text-[10px] opacity-60">
-                  {["日", "一", "二", "三", "四", "五", "六"][d.getDay()]}
+            {days.map((d) => {
+              // 計算當日排班統計
+              const dayStr = String(d.getDate()).padStart(2, "0");
+              const summary: Record<string, string[]> = {};
+              staffList.forEach((staff) => {
+                const val = schedules[currentMonth]?.[staff.id]?.[dayStr];
+                if (val) {
+                  if (!summary[val]) summary[val] = [];
+                  summary[val].push(staff.name);
+                }
+              });
+
+              const TooltipContent = (
+                <div className="flex flex-col gap-1 text-xs">
+                  {SHIFT_OPTIONS.filter(
+                    (opt) => opt.value && summary[opt.value]?.length > 0,
+                  ).map((opt) => {
+                    let textColor = "text-white";
+                    if (opt.value === "早") textColor = "text-blue-300";
+                    if (opt.value === "晚") textColor = "text-indigo-300";
+                    if (opt.value === "全") textColor = "text-purple-300";
+                    if (opt.value === "國") textColor = "text-orange-300";
+                    if (opt.value === "例") textColor = "text-gray-400";
+                    if (opt.value === "休") textColor = "text-gray-200";
+
+                    return (
+                      <div key={opt.value}>
+                        <span className={cn("font-bold", textColor)}>
+                          {opt.label} ({summary[opt.value].length}):
+                        </span>{" "}
+                        <span className="text-gray-300">
+                          {summary[opt.value].join("、")}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {Object.keys(summary).length === 0 && <div>無排班</div>}
                 </div>
-              </th>
-            ))}
+              );
+
+              return (
+                <Tooltip
+                  key={d.toISOString()}
+                  title={TooltipContent}
+                  arrow
+                  placement="top"
+                >
+                  <th className="border-r border-slate-600 p-1 text-center font-mono w-12 cursor-help hover:bg-slate-700 transition-colors">
+                    <div className="text-sm font-bold">{d.getDate()}</div>
+                    <div className="text-[10px] opacity-60">
+                      {["日", "一", "二", "三", "四", "五", "六"][d.getDay()]}
+                    </div>
+                  </th>
+                </Tooltip>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -948,4 +1069,194 @@ const HolidayManager = ({
   );
 };
 
-export { ScheduleTable, GroupManager, StaffManager, HolidayManager };
+/**
+ * 假別天數管理組件
+ * 設定每個月的例假、休假、國假天數
+ * 支援一次顯示三個月，並可左右切換
+ */
+const ShiftManager = ({
+  currentMonth,
+  config,
+  setConfig,
+}: {
+  currentMonth: string;
+  config: any;
+  setConfig: any;
+}) => {
+  // 本地狀態：顯示的起始月份
+  const [startMonthStr, setStartMonthStr] = useState(currentMonth);
+
+  // 當外部 currentMonth 改變時，同步更新起始月份 (可選)
+  React.useEffect(() => {
+    setStartMonthStr(currentMonth);
+  }, [currentMonth]);
+
+  // 輔助：解析 YYYY-MM 為 Date 物件
+  const getMonthDate = (str: string) => {
+    const [y, m] = str.split("-").map(Number);
+    return new Date(y, m - 1, 1);
+  };
+
+  const handlePrev = () => {
+    const date = getMonthDate(startMonthStr);
+    setStartMonthStr(format(subMonths(date, 1), "yyyy-MM"));
+  };
+
+  const handleNext = () => {
+    const date = getMonthDate(startMonthStr);
+    setStartMonthStr(format(addMonths(date, 1), "yyyy-MM"));
+  };
+
+  // 計算要顯示的三個月份
+  const monthsToDisplay = useMemo(() => {
+    const start = getMonthDate(startMonthStr);
+    return [0, 1, 2].map((offset) =>
+      format(addMonths(start, offset), "yyyy-MM"),
+    );
+  }, [startMonthStr]);
+
+  const handleChange = (month: string, type: string, val: string) => {
+    const num = parseInt(val) || 0;
+    const monthConfig = config[month] || {
+      regular: 8,
+      leave: 0,
+      national: 0,
+    };
+    setConfig({
+      ...config,
+      [month]: {
+        ...monthConfig,
+        [type]: num,
+      },
+    });
+  };
+
+  // 複製上個月設定
+  const handleCopyPrev = (targetMonth: string) => {
+    const date = getMonthDate(targetMonth);
+    const prevMonthStr = format(subMonths(date, 1), "yyyy-MM");
+    const prevConfig = config[prevMonthStr];
+
+    if (prevConfig) {
+      setConfig({
+        ...config,
+        [targetMonth]: { ...prevConfig },
+      });
+    } else {
+      alert(`找不到上個月 (${prevMonthStr}) 的設定資料`);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <Button onClick={handlePrev} startIcon={<ChevronLeft size={20} />}>
+          上個月
+        </Button>
+        <Typography
+          variant="h6"
+          className="flex items-center gap-2 font-bold text-slate-700"
+        >
+          <Settings size={20} className="text-blue-600" />
+          假別天數設定 ({startMonthStr} ~ {monthsToDisplay[2]})
+        </Typography>
+        <Button onClick={handleNext} endIcon={<ChevronRight size={20} />}>
+          下個月
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {monthsToDisplay.map((month) => {
+          const monthConfig = config[month] || {
+            regular: 8,
+            leave: 0,
+            national: 0,
+          };
+          const totalDays =
+            monthConfig.regular + monthConfig.leave + monthConfig.national;
+
+          return (
+            <Card
+              key={month}
+              className="p-4 bg-white shadow-sm border border-gray-200 flex flex-col"
+            >
+              <div className="mb-4 pb-2 border-b border-gray-100 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Typography variant="h6" className="text-slate-800 font-bold">
+                    {month}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleCopyPrev(month)}
+                    title="複製上個月設定"
+                    className="text-gray-400 hover:text-blue-600"
+                  >
+                    <Copy size={14} />
+                  </IconButton>
+                </div>
+                <Chip
+                  label={`共 ${totalDays} 天`}
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                />
+              </div>
+
+              <div className="space-y-3 flex-1">
+                {[
+                  {
+                    key: "regular",
+                    label: "例假",
+                    desc: "Regular Leave",
+                  },
+                  {
+                    key: "leave",
+                    label: "休假",
+                    desc: "Annual Leave",
+                  },
+                  {
+                    key: "national",
+                    label: "國假",
+                    desc: "National Holiday",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between p-3 bg-slate-50 rounded border border-gray-100"
+                  >
+                    <div>
+                      <div className="font-bold text-sm text-slate-700">
+                        {item.label}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {item.desc}
+                      </div>
+                    </div>
+                    <TextField
+                      type="number"
+                      size="small"
+                      className="w-20 bg-white"
+                      value={monthConfig[item.key]}
+                      onChange={(e) =>
+                        handleChange(month, item.key, e.target.value)
+                      }
+                      inputProps={{ min: 0, style: { textAlign: "center" } }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export {
+  ScheduleTable,
+  GroupManager,
+  StaffManager,
+  HolidayManager,
+  ShiftManager,
+};

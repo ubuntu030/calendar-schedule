@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Layers,
+  FileText,
 } from "lucide-react";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -20,6 +21,7 @@ import {
   HolidayManager,
   ScheduleTable,
   StaffManager,
+  ShiftManager,
 } from "./components/SubComponent";
 
 export default function App() {
@@ -64,6 +66,7 @@ export default function App() {
 
   const [schedules, setSchedules] = useState({});
   const [holidays, setHolidays] = useState([]);
+  const [monthlyConfig, setMonthlyConfig] = useState({});
 
   // 更新排班
   const handleUpdateShift = (staffId: string, day: string, value: string) => {
@@ -164,6 +167,11 @@ export default function App() {
               label="人員管理"
             />
             <Tab
+              icon={<FileText size={18} />}
+              iconPosition="start"
+              label="假別管理"
+            />
+            <Tab
               icon={<Settings size={18} />}
               iconPosition="start"
               label="節日與規則"
@@ -198,6 +206,7 @@ export default function App() {
                 schedules={schedules}
                 onUpdateShift={handleUpdateShift}
                 holidays={holidays}
+                monthlyConfig={monthlyConfig}
               />
             </div>
           )}
@@ -212,6 +221,13 @@ export default function App() {
             <StaffManager staffList={staffList} setStaffList={setStaffList} />
           )}
           {currentTab === 3 && (
+            <ShiftManager
+              currentMonth={format(currentDate, "yyyy-MM")}
+              config={monthlyConfig}
+              setConfig={setMonthlyConfig}
+            />
+          )}
+          {currentTab === 4 && (
             <HolidayManager holidays={holidays} setHolidays={setHolidays} />
           )}
         </div>
