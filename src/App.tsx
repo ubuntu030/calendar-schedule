@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Layers,
   FileText,
+  DownloadCloud,
 } from "lucide-react";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -23,19 +24,10 @@ import {
   StaffManager,
   ShiftManager,
 } from "./components/SubComponent";
-import {
-  DEFAULT_GROUPS,
-  DEFAULT_HOLIDAYS,
-  DEFAULT_STAFF,
-} from "./defaultData";
+import { DEFAULT_GROUPS, DEFAULT_HOLIDAYS, DEFAULT_STAFF } from "./defaultData";
 import { DEFAULT_MONTH_CONFIG } from "./constants";
-import type {
-  Staff,
-  Group,
-  Schedules,
-  Holiday,
-  MonthlyConfigs,
-} from "./types";
+import type { Staff, Group, Schedules, Holiday, MonthlyConfigs } from "./types";
+import { exportAnnualScheduleToExcel } from "./utils/excelExport";
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState(0);
@@ -54,19 +46,17 @@ export default function App() {
   // 更新排班
   const handleUpdateShift = (staffId: string, day: string, value: string) => {
     const currentMonthString = format(currentDate, "yyyy-MM");
-    setSchedules(
-      (prev: Schedules) => {
-        const monthData = prev[currentMonthString] || {};
-        const staffData = monthData[staffId] || {};
-        return {
-          ...prev,
-          [currentMonthString]: {
-            ...monthData,
-            [staffId]: { ...staffData, [day]: value },
-          },
-        };
-      },
-    );
+    setSchedules((prev: Schedules) => {
+      const monthData = prev[currentMonthString] || {};
+      const staffData = monthData[staffId] || {};
+      return {
+        ...prev,
+        [currentMonthString]: {
+          ...monthData,
+          [staffId]: { ...staffData, [day]: value },
+        },
+      };
+    });
   };
 
   const handlePrevMonth = () => {
@@ -75,6 +65,20 @@ export default function App() {
 
   const handleNextMonth = () => {
     setCurrentDate((prevDate) => addMonths(prevDate, 1));
+  };
+
+  // --- 新增：處理 Excel 匯出 ---
+  const handleExportExcel = async () => {
+    const year = currentDate.getFullYear();
+    try {
+      // 顯示簡易的 Loading 提示 (可選)
+      // alert("正在生成 Excel，請稍候...");
+
+      await exportAnnualScheduleToExcel(year, staffList, schedules, holidays, groups);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("匯出失敗，請檢查資料是否完整");
+    }
   };
 
   // 取得當月假別設定
@@ -95,11 +99,12 @@ export default function App() {
                 React 智能排班系統
               </h1>
               <p className="text-xs text-slate-500">
-                v1.1.0 (Groups + TypeScript JSDoc)
+                v1.2.0 (Excel Export Support)
               </p>
             </div>
           </div>
 
+          {/* 中間：月份切換 */}
           <div className="flex items-center gap-4 bg-slate-100 p-1.5 rounded-lg">
             <Button
               size="small"
@@ -130,10 +135,28 @@ export default function App() {
               下個月
             </Button>
           </div>
+
+          {/* 右側：功能按鈕區 */}
+          <div>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<DownloadCloud size={18} />}
+              onClick={handleExportExcel}
+              className="shadow-md hover:bg-green-700 bg-green-600"
+              sx={{
+                fontWeight: "bold",
+                textTransform: "none",
+                borderRadius: 2,
+              }}
+            >
+              匯出年度 Excel
+            </Button>
+          </div>
         </header>
 
         {/* 主要內容區 */}
-        <main className="max-w-350 mx-auto mt-6 px-4">
+        <main className="max-w-[1400px] mx-auto mt-6 px-4">
           <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
             <Tabs
               value={currentTab}
@@ -168,25 +191,25 @@ export default function App() {
             </Tabs>
           </Box>
 
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 min-h-150 flex flex-col">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 min-h-[600px] flex flex-col">
             {currentTab === 0 && (
               <div className="p-0 flex-1 flex flex-col">
                 <div className="p-4 bg-blue-50/50 border-b flex justify-between items-center text-sm text-blue-800">
-                  <div className="flex gap-4 items-center">
-                    <span className="flex items-center gap-1">
+                  <div className="flex gap-4 items-center overflow-x-auto">
+                    <span className="flex items-center gap-1 shrink-0">
                       <span className="w-3 h-3 bg-red-500 rounded-sm"></span>{" "}
                       國定假日 (禁休/雙薪)
                     </span>
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1 shrink-0">
                       <span className="w-3 h-3 bg-red-50 rounded-sm border border-red-200"></span>{" "}
                       週末
                     </span>
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1 shrink-0">
                       <span className="w-3 h-3 bg-slate-800 rounded-full"></span>{" "}
                       人力警告 (閃爍)
                     </span>
                     <div className="h-4 w-px bg-blue-300 mx-2"></div>
-                    <span className="font-bold text-blue-900 flex items-center gap-2">
+                    <span className="font-bold text-blue-900 flex items-center gap-2 shrink-0">
                       本月假別(天):
                       <span className="font-mono bg-white px-2 py-0.5 rounded text-blue-600 border border-blue-200 shadow-sm">
                         例:{mConfig.regular} 休:{mConfig.leave} 國:
@@ -194,7 +217,9 @@ export default function App() {
                       </span>
                     </span>
                   </div>
-                  <div>目前員工數: {staffList.length} 人</div>
+                  <div className="shrink-0 ml-4">
+                    目前員工數: {staffList.length} 人
+                  </div>
                 </div>
                 <ScheduleTable
                   currentMonth={format(currentDate, "yyyy-MM")}
