@@ -187,4 +187,10 @@ export const DEFAULT_HOLIDAYS = [
     color: "bg-red-500 text-white",
     type: "NATIONAL",
   },
-];
+] as {
+  date: string;
+  name: string;
+  isOff: string;
+  color: string;
+  type: "NATIONAL" | "WEEKEND" | "MANUAL";
+}[];

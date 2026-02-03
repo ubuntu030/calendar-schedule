@@ -125,7 +125,9 @@ const getDaysInMonth = (year: number, month: number) => {
 };
 
 // 工具：員工排序邏輯
-const sortStaff = (staffList: any[]) => {
+const sortStaff = (
+  staffList: { id: string; name: string; title: string }[],
+) => {
   return [...staffList].sort((a, b) => {
     const weightA = TITLE_WEIGHTS[a.title as keyof typeof TITLE_WEIGHTS] || 99;
     const weightB = TITLE_WEIGHTS[b.title as keyof typeof TITLE_WEIGHTS] || 99;
@@ -166,12 +168,30 @@ const ScheduleTable = ({
   monthlyConfig = {},
 }: {
   currentMonth: string;
-  staffList: any[];
-  groups: any[];
-  schedules: any;
-  onUpdateShift: any;
-  holidays: any[];
-  monthlyConfig?: any;
+  staffList: {
+    id: string;
+    name: string;
+    title: string;
+  }[];
+  groups: {
+    id: string;
+    name: string;
+    memberIds: string[];
+  }[];
+  schedules: {
+    [yearMonth: string]: { [staffId: string]: { [day: string]: string } };
+  };
+  onUpdateShift: (staffId: string, day: string, value: string) => void;
+  holidays: {
+    date: string;
+    name: string;
+    isOff: string;
+    color: string;
+    type: "NATIONAL" | "WEEKEND" | "MANUAL";
+  }[];
+  monthlyConfig?: {
+    [yearMonth: string]: { regular: number; leave: number; national: number };
+  };
 }) => {
   // 計算當月日期
   const days = useMemo(() => {
@@ -226,7 +246,11 @@ const ScheduleTable = ({
 
   // --- 分組渲染邏輯 ---
   // 1. 找出所有已分組的 ID
-  const groupedStaffIds = new Set(groups.flatMap((g) => g.memberIds));
+  const groupedStaffIds = new Set(
+    groups.flatMap(
+      (g: { id: string; name: string; memberIds: string[] }) => g.memberIds,
+    ),
+  );
 
   // 2. 找出未分組的員工
   const ungroupedStaff = staffList.filter((s) => !groupedStaffIds.has(s.id));
@@ -235,7 +259,11 @@ const ScheduleTable = ({
    * 渲染單一員工列
    * @param {Staff} staff
    */
-  const renderStaffRow = (staff: any) => {
+  const renderStaffRow = (staff: {
+    id: string;
+    name: string;
+    title: string;
+  }) => {
     // 計算該員工目前的休假總數
     const staffShifts = schedules[currentMonth]?.[staff.id] || {};
     let regularCount = 0;
@@ -245,7 +273,7 @@ const ScheduleTable = ({
     let eveningCount = 0;
     let fullCount = 0;
 
-    Object.values(staffShifts).forEach((v: any) => {
+    (Object.values(staffShifts) as string[]).forEach((v: string) => {
       if (v === "例") regularCount++;
       if (v === "休") leaveCount++;
       if (v === "國") nationalCount++;
@@ -366,7 +394,7 @@ const ScheduleTable = ({
         <thead className="sticky top-0 z-30 bg-white shadow-sm">
           {/* 節日資訊列 */}
           <tr>
-            <th className="sticky left-0 top-0 z-40 bg-slate-50 border-b border-r border-gray-200 min-w-[140px] p-2 text-left text-xs font-normal text-gray-500">
+            <th className="sticky left-0 top-0 z-40 bg-slate-50 border-b border-r border-gray-200 min-w-35 p-2 text-left text-xs font-normal text-gray-500">
               <div className="flex items-center gap-1">
                 <AlertTriangle size={12} /> 規則提示
               </div>
@@ -381,7 +409,7 @@ const ScheduleTable = ({
                 <th
                   key={d.toISOString()}
                   className={cn(
-                    "border-b border-r border-gray-200 text-xs relative h-10 min-w-[48px] transition-colors",
+                    "border-b border-r border-gray-200 text-xs relative h-10 min-w-12 transition-colors",
                     holiday?.color ||
                       (isWeekend ? "bg-red-50 text-red-500" : "bg-slate-50"),
                     isHovered && "bg-blue-50",
@@ -526,9 +554,21 @@ const GroupManager = ({
   setGroups,
   staffList,
 }: {
-  groups: any[];
-  setGroups: any;
-  staffList: any[];
+  groups: {
+    id: string; // 群組 ID，例如 "g1"
+    name: string; // 群組名稱，例如 "早班 (甜點)"
+    memberIds: string[]; // 成員 ID 陣列，例如 ["200043", "190098", ...]
+  }[];
+  setGroups: React.Dispatch<
+    React.SetStateAction<
+      {
+        id: string;
+        name: string;
+        memberIds: string[];
+      }[]
+    >
+  >;
+  staffList: { id: string; name: string; title: string }[];
 }) => {
   const [newGroupName, setNewGroupName] = useState("");
 
@@ -560,23 +600,42 @@ const GroupManager = ({
 
   // 加入成員到群組 (需處理 Exclusive Logic: 從其他群組移除)
   const handleAddMember = (groupId: string, staffId: string) => {
-    setGroups((prevGroups: any) => {
-      // 1. 先從所有群組中移除該 staffId
-      const clearedGroups = prevGroups.map((g: any) => ({
-        ...g,
-        memberIds: g.memberIds.filter((id: string) => id !== staffId),
-      }));
+    setGroups(
+      (
+        prevGroups: {
+          id: string; // 群組 ID，例如 "g1"
+          name: string; // 群組名稱，例如 "早班 (甜點)"
+          memberIds: string[]; // 成員 ID 陣列，例如 ["200043", "190098", ...]
+        }[],
+      ) => {
+        // 1. 先從所有群組中移除該 staffId
+        const clearedGroups = prevGroups.map(
+          (g: {
+            id: string; // 群組 ID，例如 "g1"
+            name: string; // 群組名稱，例如 "早班 (甜點)"
+            memberIds: string[]; // 成員 ID 陣列，例如 ["200043", "190098", ...]
+          }) => ({
+            ...g,
+            memberIds: g.memberIds.filter((id: string) => id !== staffId),
+          }),
+        );
 
-      // 2. 加入到目標群組
-      return clearedGroups.map((g: any) =>
-        g.id === groupId
-          ? {
-              ...g,
-              memberIds: [...g.memberIds, staffId],
-            }
-          : g,
-      );
-    });
+        // 2. 加入到目標群組
+        return clearedGroups.map(
+          (g: {
+            id: string; // 群組 ID，例如 "g1"
+            name: string; // 群組名稱，例如 "早班 (甜點)"
+            memberIds: string[]; // 成員 ID 陣列，例如 ["200043", "190098", ...]
+          }) =>
+            g.id === groupId
+              ? {
+                  ...g,
+                  memberIds: [...g.memberIds, staffId],
+                }
+              : g,
+        );
+      },
+    );
   };
 
   // 移除成員
@@ -632,7 +691,7 @@ const GroupManager = ({
         {groups.map((group) => (
           <Card
             key={group.id}
-            className="p-4 bg-slate-50 border border-gray-200 shadow-sm flex flex-col h-[400px]"
+            className="p-4 bg-slate-50 border border-gray-200 shadow-sm flex flex-col h-100"
           >
             {/* Header: 組名編輯與刪除 */}
             <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
@@ -745,8 +804,16 @@ const StaffManager = ({
   staffList,
   setStaffList,
 }: {
-  staffList: any[];
-  setStaffList: any;
+  staffList: { id: string; name: string; title: string }[];
+  setStaffList: React.Dispatch<
+    React.SetStateAction<
+      {
+        id: string;
+        name: string;
+        title: string;
+      }[]
+    >
+  >;
 }) => {
   const [newStaff, setNewStaff] = useState({
     id: "",
@@ -792,7 +859,7 @@ const StaffManager = ({
             value={newStaff.name}
             onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
           />
-          <FormControl size="small" className="min-w-[120px] bg-white">
+          <FormControl size="small" className="min-w-30 bg-white">
             <InputLabel>職稱</InputLabel>
             <Select
               value={newStaff.title}
@@ -873,7 +940,17 @@ const HolidayManager = ({
     color: string;
     type: string;
   }[];
-  setHolidays: any;
+  setHolidays: React.Dispatch<
+    React.SetStateAction<
+      {
+        date: string;
+        name: string;
+        isOff: string;
+        color: string;
+        type: "NATIONAL" | "WEEKEND" | "MANUAL";
+      }[]
+    >
+  >;
 }) => {
   const [jsonInput, setJsonInput] = useState("");
   const [formData, setFormData] = useState({
@@ -898,20 +975,36 @@ const HolidayManager = ({
       name: formData.name,
       isOff: "2",
       color: colorClass,
-      type: formData.type,
+      type: formData.type as "NATIONAL" | "WEEKEND" | "MANUAL",
     };
 
-    setHolidays((prev: any[]) => {
-      const filtered = prev.filter((h) => h.date !== formData.date);
-      return [...filtered, newHoliday].sort((a, b) =>
-        a.date.localeCompare(b.date),
-      );
-    });
+    setHolidays(
+      (
+        prev: {
+          date: string;
+          name: string;
+          isOff: string;
+          color: string;
+          type: "NATIONAL" | "WEEKEND" | "MANUAL";
+        }[],
+      ) => {
+        const filtered = prev.filter((h) => h.date !== formData.date);
+        return [...filtered, newHoliday].sort((a, b) =>
+          a.date.localeCompare(b.date),
+        );
+      },
+    );
 
     setFormData({ date: "", name: "", type: "NATIONAL" });
   };
 
-  const handleEdit = (h: any) => {
+  const handleEdit = (h: {
+    date: string;
+    name: string;
+    isOff: string;
+    color: string;
+    type: string;
+  }) => {
     setFormData({
       date: h.date,
       name: h.name || "",
@@ -923,44 +1016,81 @@ const HolidayManager = ({
     try {
       const parsed = JSON.parse(jsonInput);
       const newHolidays = parsed
-        .filter((item: any) => {
-          if (item.是否放假 !== "2") return false;
-          if (onlySpecial && !item.備註) return false;
-          return true;
-        })
-        .map((item: any) => {
-          // 轉換 20260101 -> 2026-01-01
-          const d = item.西元日期;
-          const dateStr = `${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)}`;
+        .filter(
+          (item: {
+            西元日期: string;
+            星期: string;
+            是否放假: "0" | "2";
+            備註: string;
+          }) => {
+            if (item.是否放假 !== "2") return false;
+            if (onlySpecial && !item.備註) return false;
+            return true;
+          },
+        )
+        .map(
+          (item: {
+            西元日期: string;
+            星期: string;
+            是否放假: "0" | "2";
+            備註: string;
+          }) => {
+            // 轉換 20260101 -> 2026-01-01
+            const d = item.西元日期;
+            const dateStr = `${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)}`;
 
-          let colorClass = "";
-          let type = "NORMAL";
+            let colorClass = "";
+            let type: "NATIONAL" | "WEEKEND" | "MANUAL" = "WEEKEND";
 
-          if (item.備註) {
-            colorClass = "bg-red-400 text-white"; // 國定假日
-            type = "NATIONAL";
-          } else {
-            colorClass = "bg-red-50 text-red-500"; // 週末
-            type = "WEEKEND";
-          }
-          return {
-            date: dateStr,
-            name: item.備註,
-            isOff: item.是否放假,
-            color: colorClass,
-            type,
-          };
-        });
+            if (item.備註) {
+              colorClass = "bg-red-400 text-white"; // 國定假日
+              type = "NATIONAL";
+            } else {
+              colorClass = "bg-red-50 text-red-500"; // 週末
+              type = "WEEKEND";
+            }
+            return {
+              date: dateStr,
+              name: item.備註,
+              isOff: item.是否放假,
+              color: colorClass,
+              type,
+            };
+          },
+        );
 
       // 合併去重
       const merged = [...holidays, ...newHolidays].reduce((acc, curr) => {
         acc[curr.date] = curr;
         return acc;
-      }, {});
+      }, {}) as {
+        date: string;
+        name: string;
+        isOff: string;
+        color: string;
+        type: "NATIONAL" | "WEEKEND" | "MANUAL";
+      }[];
 
       setHolidays(
-        Object.values(merged).sort((a: any, b: any) =>
-          a.date.localeCompare(b.date),
+        Object.values(merged).sort(
+          (
+            a: {
+              date: string;
+              name: string;
+              isOff: string;
+              color: string;
+              type: "NATIONAL" | "WEEKEND" | "MANUAL";
+            },
+            b: {
+              date: string;
+              name: string;
+              isOff: string;
+              color: string;
+              type: "NATIONAL" | "WEEKEND" | "MANUAL";
+            },
+          ) => {
+            return a.date.localeCompare(b.date);
+          },
         ),
       );
       alert(`成功匯入 ${newHolidays.length} 筆資料`);
@@ -1057,7 +1187,7 @@ const HolidayManager = ({
         </div>
       </div>
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col h-[600px]">
+      <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col h-150">
         <div className="bg-slate-100 p-3 font-semibold border-b border-gray-200">
           已登錄節日 ({holidays.length})
         </div>
@@ -1097,8 +1227,16 @@ const HolidayManager = ({
                   size="small"
                   color="error"
                   onClick={() =>
-                    setHolidays((prev: any[]) =>
-                      prev.filter((x) => x.date !== h.date),
+                    setHolidays(
+                      (
+                        prev: {
+                          date: string;
+                          name: string;
+                          isOff: string;
+                          color: string;
+                          type: "NATIONAL" | "WEEKEND" | "MANUAL";
+                        }[],
+                      ) => prev.filter((x) => x.date !== h.date),
                     )
                   }
                   style={{ minWidth: "30px" }}
@@ -1125,8 +1263,20 @@ const ShiftManager = ({
   setConfig,
 }: {
   currentMonth: string;
-  config: any;
-  setConfig: any;
+  config: {
+    [yearMonth: string]: {
+      regular: number; // 常規天數
+      leave: number; // 請假天數
+      national: number; // 國定假日天數
+    };
+  };
+  setConfig: (newConfig: {
+    [yearMonth: string]: {
+      regular: number; // 常規天數
+      leave: number; // 請假天數
+      national: number; // 國定假日天數
+    };
+  }) => void;
 }) => {
   // 本地狀態：顯示的起始月份
   const [startMonthStr, setStartMonthStr] = useState(currentMonth);
@@ -1293,7 +1443,7 @@ const ShiftManager = ({
                       type="number"
                       size="small"
                       className="w-20 bg-white"
-                      value={monthConfig[item.key]}
+                      value={monthConfig[item.key as keyof typeof monthConfig]}
                       onChange={(e) =>
                         handleChange(month, item.key, e.target.value)
                       }

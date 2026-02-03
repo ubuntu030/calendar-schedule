@@ -35,24 +35,32 @@ export default function App() {
   // 分組資料狀態
   const [groups, setGroups] = useState(DEFAULT_GROUPS);
 
-  const [schedules, setSchedules] = useState({});
+  const [schedules, setSchedules] = useState<{
+    [yearMonth: string]: { [staffId: string]: { [day: string]: string } };
+  }>({});
   const [holidays, setHolidays] = useState(DEFAULT_HOLIDAYS);
-  const [monthlyConfig, setMonthlyConfig] = useState<Record<string, any>>({});
+  const [monthlyConfig, setMonthlyConfig] = useState<{
+    [yearMonth: string]: { regular: number; leave: number; national: number };
+  }>({});
 
   // 更新排班
   const handleUpdateShift = (staffId: string, day: string, value: string) => {
     const currentMonthString = format(currentDate, "yyyy-MM");
-    setSchedules((prev: Record<string, any>) => {
-      const monthData = prev[currentMonthString] || {};
-      const staffData = monthData[staffId] || {};
-      return {
-        ...prev,
-        [currentMonthString]: {
-          ...monthData,
-          [staffId]: { ...staffData, [day]: value },
-        },
-      };
-    });
+    setSchedules(
+      (prev: {
+        [yearMonth: string]: { [staffId: string]: { [day: string]: string } };
+      }) => {
+        const monthData = prev[currentMonthString] || {};
+        const staffData = monthData[staffId] || {};
+        return {
+          ...prev,
+          [currentMonthString]: {
+            ...monthData,
+            [staffId]: { ...staffData, [day]: value },
+          },
+        };
+      },
+    );
   };
 
   const handlePrevMonth = () => {
@@ -123,7 +131,7 @@ export default function App() {
         </header>
 
         {/* 主要內容區 */}
-        <main className="max-w-[1400px] mx-auto mt-6 px-4">
+        <main className="max-w-350 mx-auto mt-6 px-4">
           <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
             <Tabs
               value={currentTab}
@@ -158,7 +166,7 @@ export default function App() {
             </Tabs>
           </Box>
 
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 min-h-[600px] flex flex-col">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 min-h-150 flex flex-col">
             {currentTab === 0 && (
               <div className="p-0 flex-1 flex flex-col">
                 <div className="p-4 bg-blue-50/50 border-b flex justify-between items-center text-sm text-blue-800">
