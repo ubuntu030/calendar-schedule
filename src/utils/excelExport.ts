@@ -131,8 +131,8 @@ const generateMonthlySheet = async (
   });
 
   // 1-2. 加入統計欄位
-  holidayHeaderRowData.push("", "", "");
-  headerRow1Data.push("例", "休", "國");
+  holidayHeaderRowData.push("例", "休", "國");
+  headerRow1Data.push("", "", "");
   headerRow2Data.push("", "", "");
 
   // 1-3. 寫入標題並設定樣式
