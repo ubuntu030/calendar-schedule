@@ -74,7 +74,13 @@ export default function App() {
       // 顯示簡易的 Loading 提示 (可選)
       // alert("正在生成 Excel，請稍候...");
 
-      await exportAnnualScheduleToExcel(year, staffList, schedules, holidays, groups);
+      await exportAnnualScheduleToExcel(
+        year,
+        staffList,
+        schedules,
+        holidays,
+        groups,
+      );
     } catch (error) {
       console.error("Export failed:", error);
       alert("匯出失敗，請檢查資料是否完整");
@@ -156,7 +162,7 @@ export default function App() {
         </header>
 
         {/* 主要內容區 */}
-        <main className="max-w-[1400px] mx-auto mt-6 px-4">
+        <main className="max-w-350 mx-auto mt-6 px-4">
           <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
             <Tabs
               value={currentTab}
@@ -191,7 +197,7 @@ export default function App() {
             </Tabs>
           </Box>
 
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 min-h-[600px] flex flex-col">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 min-h-150 flex flex-col">
             {currentTab === 0 && (
               <div className="p-0 flex-1 flex flex-col">
                 <div className="p-4 bg-blue-50/50 border-b flex justify-between items-center text-sm text-blue-800">

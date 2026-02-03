@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import { format, getDaysInMonth, getDay, isSaturday, isSunday } from "date-fns";
+import { format, getDaysInMonth, isSaturday, isSunday } from "date-fns";
 import { zhTW } from "date-fns/locale/zh-TW";
 import { TITLE_WEIGHTS } from "../constants";
 import type { Staff, Schedules, Holiday, Group } from "../types";
@@ -251,9 +251,7 @@ const generateMonthlySheet = async (
 
   // 渲染分組員工
   groups.forEach((group) => {
-    const groupStaff = staffList.filter((s) =>
-      group.memberIds.includes(s.id),
-    );
+    const groupStaff = staffList.filter((s) => group.memberIds.includes(s.id));
     const sortedGroupStaff = sortStaffList(groupStaff);
 
     if (sortedGroupStaff.length === 0) return;
@@ -267,9 +265,18 @@ const generateMonthlySheet = async (
       3 + daysInMonth + 3,
     );
     groupHeaderRow.getCell(1).style = {
-      font: { bold: true, name: "Arial", size: 10, color: { argb: "FF555555" } },
+      font: {
+        bold: true,
+        name: "Arial",
+        size: 10,
+        color: { argb: "FF555555" },
+      },
       alignment: { vertical: "middle", horizontal: "left", indent: 1 },
-      fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } },
+      fill: {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFF1F5F9" },
+      },
     };
     groupHeaderRow.height = 22;
 
@@ -278,12 +285,28 @@ const generateMonthlySheet = async (
 
   // 渲染未分組員工
   if (ungroupedStaff.length > 0) {
-    const ungroupedHeaderRow = worksheet.addRow(["--- 未分組人員 (Ungrouped) ---"]);
-    worksheet.mergeCells(ungroupedHeaderRow.number, 1, ungroupedHeaderRow.number, 3 + daysInMonth + 3);
+    const ungroupedHeaderRow = worksheet.addRow([
+      "--- 未分組人員 (Ungrouped) ---",
+    ]);
+    worksheet.mergeCells(
+      ungroupedHeaderRow.number,
+      1,
+      ungroupedHeaderRow.number,
+      3 + daysInMonth + 3,
+    );
     ungroupedHeaderRow.getCell(1).style = {
-      font: { bold: true, name: "Arial", size: 10, color: { argb: "FF555555" } },
+      font: {
+        bold: true,
+        name: "Arial",
+        size: 10,
+        color: { argb: "FF555555" },
+      },
       alignment: { vertical: "middle", horizontal: "left", indent: 1 },
-      fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } },
+      fill: {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFF1F5F9" },
+      },
     };
     ungroupedHeaderRow.height = 22;
 
