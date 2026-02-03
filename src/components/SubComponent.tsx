@@ -39,62 +39,19 @@ import type {
   HolidayType,
   MonthConfig,
 } from "../types";
+import {
+  DEFAULT_MONTH_CONFIG,
+  SHIFT_MANAGER_LEAVE_TYPES,
+  SHIFT_OPTIONS,
+  TITLE_WEIGHTS,
+} from "../constants";
+import { getTitleColor } from "../utils/style";
 
 /**
  * ============================================================================
  * 1. TYPE DEFINITIONS & CONSTANTS (型別定義與常數)
  * ============================================================================
  */
-
-// 職位權重設定 (數值越小排序越前)
-const TITLE_WEIGHTS = {
-  Chef: 1,
-  "Sous chef": 2,
-  CDP: 3,
-  "Demi CDP": 4,
-  Commis: 5,
-  Inter: 6,
-  PT: 7,
-};
-
-// 職位標籤顏色
-const getTitleColor = (title: string) => {
-  if (title === "Chef" || title === "Sous chef")
-    return "bg-red-100 text-red-700";
-  if (title === "CDP" || title === "Demi CDP")
-    return "bg-blue-100 text-blue-700";
-  if (title === "Commis") return "bg-green-100 text-green-700";
-  if (title === "Inter") return "bg-orange-100 text-orange-800";
-  if (title === "PT") return "bg-gray-100 text-gray-600";
-  return "bg-slate-100 text-slate-700";
-};
-
-// 班別選項設定
-const SHIFT_OPTIONS = [
-  { value: "", label: "", color: "bg-transparent" },
-  { value: "早", label: "早", color: "bg-blue-100 text-blue-800 font-bold" },
-  {
-    value: "晚",
-    label: "晚",
-    color: "bg-indigo-100 text-indigo-800 font-bold",
-  },
-  {
-    value: "全",
-    label: "全",
-    color: "bg-purple-100 text-purple-800 font-bold",
-  },
-  {
-    value: "國",
-    label: "國",
-    color: "bg-orange-100 text-orange-800 font-bold",
-  },
-  { value: "例", label: "例", color: "bg-gray-200 text-gray-500" },
-  {
-    value: "休",
-    label: "休",
-    color: "bg-white border border-gray-300 text-gray-400",
-  },
-];
 
 // 工具：取得該月份所有日期物件
 const getDaysInMonth = (year: number, month: number) => {
@@ -240,11 +197,7 @@ const ScheduleTable = ({
     });
 
     // 取得當月設定目標
-    const mConfig = monthlyConfig[currentMonth] || {
-      regular: 4,
-      leave: 4,
-      national: 0,
-    };
+    const mConfig = monthlyConfig[currentMonth] || DEFAULT_MONTH_CONFIG;
 
     const isOver =
       regularCount > mConfig.regular ||
@@ -1165,11 +1118,7 @@ const ShiftManager = ({
 
   const handleChange = (month: string, type: string, val: string) => {
     const num = parseInt(val) || 0;
-    const monthConfig: MonthConfig = config[month] || {
-      regular: 4,
-      leave: 4,
-      national: 0,
-    };
+    const monthConfig: MonthConfig = config[month] || DEFAULT_MONTH_CONFIG;
     setConfig({
       ...config,
       [month]: {
@@ -1215,11 +1164,7 @@ const ShiftManager = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {monthsToDisplay.map((month) => {
-          const monthConfig = config[month] || {
-            regular: 4,
-            leave: 4,
-            national: 0,
-          };
+          const monthConfig = config[month] || DEFAULT_MONTH_CONFIG;
           const totalDays =
             monthConfig.regular + monthConfig.leave + monthConfig.national;
           const isCurrent = month === currentMonth;
@@ -1263,23 +1208,7 @@ const ShiftManager = ({
               </div>
 
               <div className="space-y-3 flex-1">
-                {[
-                  {
-                    key: "regular",
-                    label: "例假",
-                    desc: "Regular Leave",
-                  },
-                  {
-                    key: "leave",
-                    label: "休假",
-                    desc: "Annual Leave",
-                  },
-                  {
-                    key: "national",
-                    label: "國假",
-                    desc: "National Holiday",
-                  },
-                ].map((item) => (
+                {SHIFT_MANAGER_LEAVE_TYPES.map((item) => (
                   <div
                     key={item.key}
                     className="flex items-center justify-between p-3 bg-slate-50 rounded border border-gray-100"

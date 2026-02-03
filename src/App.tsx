@@ -23,7 +23,12 @@ import {
   StaffManager,
   ShiftManager,
 } from "./components/SubComponent";
-import { DEFAULT_GROUPS, DEFAULT_HOLIDAYS, DEFAULT_STAFF } from "./defaultData";
+import {
+  DEFAULT_GROUPS,
+  DEFAULT_HOLIDAYS,
+  DEFAULT_STAFF,
+} from "./defaultData";
+import { DEFAULT_MONTH_CONFIG } from "./constants";
 import type {
   Staff,
   Group,
@@ -74,11 +79,7 @@ export default function App() {
 
   // 取得當月假別設定
   const currentMonthStr = format(currentDate, "yyyy-MM");
-  const mConfig = monthlyConfig[currentMonthStr] || {
-    regular: 4,
-    leave: 4,
-    national: 0,
-  };
+  const mConfig = monthlyConfig[currentMonthStr] || DEFAULT_MONTH_CONFIG;
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={zhTW}>

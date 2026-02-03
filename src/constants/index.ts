@@ -1,5 +1,5 @@
 // 職位權重設定 (數值越小排序越前)
-const TITLE_WEIGHTS = {
+export const TITLE_WEIGHTS = {
   Chef: 1,
   "Sous chef": 2,
   CDP: 3,
@@ -10,8 +10,8 @@ const TITLE_WEIGHTS = {
 };
 
 // 班別選項設定
-const SHIFT_OPTIONS = [
-  { value: "", label: "-", color: "bg-transparent" },
+export const SHIFT_OPTIONS = [
+  { value: "", label: "", color: "bg-transparent" },
   { value: "早", label: "早", color: "bg-blue-100 text-blue-800 font-bold" },
   {
     value: "晚",
@@ -23,6 +23,11 @@ const SHIFT_OPTIONS = [
     label: "全",
     color: "bg-purple-100 text-purple-800 font-bold",
   },
+  {
+    value: "國",
+    label: "國",
+    color: "bg-orange-100 text-orange-800 font-bold",
+  },
   { value: "例", label: "例", color: "bg-gray-200 text-gray-500" },
   {
     value: "休",
@@ -31,4 +36,28 @@ const SHIFT_OPTIONS = [
   },
 ];
 
-export { TITLE_WEIGHTS, SHIFT_OPTIONS };
+// 預設每月休假天數
+export const DEFAULT_MONTH_CONFIG = {
+  regular: 4,
+  leave: 4,
+  national: 0,
+};
+
+// 假別天數管理組件設定
+export const SHIFT_MANAGER_LEAVE_TYPES = [
+  {
+    key: "regular",
+    label: "例假",
+    desc: "Regular Leave",
+  },
+  {
+    key: "leave",
+    label: "休假",
+    desc: "Annual Leave",
+  },
+  {
+    key: "national",
+    label: "國假",
+    desc: "National Holiday",
+  },
+];
