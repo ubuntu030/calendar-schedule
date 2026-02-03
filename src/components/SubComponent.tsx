@@ -30,37 +30,20 @@ import {
 } from "lucide-react";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { format, addMonths, subMonths } from "date-fns";
+import type {
+  Staff,
+  Group,
+  Holiday,
+  Schedules,
+  MonthlyConfigs,
+  HolidayType,
+  MonthConfig,
+} from "../types";
 
 /**
  * ============================================================================
  * 1. TYPE DEFINITIONS & CONSTANTS (型別定義與常數)
  * ============================================================================
- */
-
-/**
- * 員工資料介面
- * @typedef {Object} Staff
- * @property {string} id - 員工唯一編號
- * @property {string} name - 員工姓名
- * @property {string} title - 職稱 (Chef, CDP, etc.)
- */
-
-/**
- * 群組資料介面
- * @typedef {Object} Group
- * @property {string} id - 群組唯一編號
- * @property {string} name - 群組名稱 (如: 內場, 外場)
- * @property {string[]} memberIds - 該群組成員的 ID 列表
- */
-
-/**
- * 節日資料介面
- * @typedef {Object} Holiday
- * @property {string} date - 日期 (YYYY-MM-DD)
- * @property {string} name - 節日名稱
- * @property {string} isOff - '0'|'2' 是否放假
- * @property {string} color - Tailwind class for styling
- * @property {'NATIONAL' | 'WEEKEND' | 'MANUAL'} type - 節日類型
  */
 
 // 職位權重設定 (數值越小排序越前)
@@ -125,9 +108,7 @@ const getDaysInMonth = (year: number, month: number) => {
 };
 
 // 工具：員工排序邏輯
-const sortStaff = (
-  staffList: { id: string; name: string; title: string }[],
-) => {
+const sortStaff = (staffList: Staff[]) => {
   return [...staffList].sort((a, b) => {
     const weightA = TITLE_WEIGHTS[a.title as keyof typeof TITLE_WEIGHTS] || 99;
     const weightB = TITLE_WEIGHTS[b.title as keyof typeof TITLE_WEIGHTS] || 99;
@@ -168,30 +149,12 @@ const ScheduleTable = ({
   monthlyConfig = {},
 }: {
   currentMonth: string;
-  staffList: {
-    id: string;
-    name: string;
-    title: string;
-  }[];
-  groups: {
-    id: string;
-    name: string;
-    memberIds: string[];
-  }[];
-  schedules: {
-    [yearMonth: string]: { [staffId: string]: { [day: string]: string } };
-  };
+  staffList: Staff[];
+  groups: Group[];
+  schedules: Schedules;
   onUpdateShift: (staffId: string, day: string, value: string) => void;
-  holidays: {
-    date: string;
-    name: string;
-    isOff: string;
-    color: string;
-    type: "NATIONAL" | "WEEKEND" | "MANUAL";
-  }[];
-  monthlyConfig?: {
-    [yearMonth: string]: { regular: number; leave: number; national: number };
-  };
+  holidays: Holiday[];
+  monthlyConfig?: MonthlyConfigs;
 }) => {
   // 計算當月日期
   const days = useMemo(() => {
@@ -224,7 +187,9 @@ const ScheduleTable = ({
    * @param {string} dateStr - YYYY-MM-DD
    */
   const checkRules = (dateStr: string) => {
-    const holiday = holidays.find((h) => h.date === dateStr);
+    const holiday: Holiday | undefined = holidays.find(
+      (h) => h.date === dateStr,
+    );
     if (!holiday || holiday.isOff !== "2") return { pass: true };
 
     // 取得當日所有有排班的員工 (不分組)
@@ -246,11 +211,7 @@ const ScheduleTable = ({
 
   // --- 分組渲染邏輯 ---
   // 1. 找出所有已分組的 ID
-  const groupedStaffIds = new Set(
-    groups.flatMap(
-      (g: { id: string; name: string; memberIds: string[] }) => g.memberIds,
-    ),
-  );
+  const groupedStaffIds = new Set(groups.flatMap((g: Group) => g.memberIds));
 
   // 2. 找出未分組的員工
   const ungroupedStaff = staffList.filter((s) => !groupedStaffIds.has(s.id));
@@ -259,11 +220,7 @@ const ScheduleTable = ({
    * 渲染單一員工列
    * @param {Staff} staff
    */
-  const renderStaffRow = (staff: {
-    id: string;
-    name: string;
-    title: string;
-  }) => {
+  const renderStaffRow = (staff: Staff) => {
     // 計算該員工目前的休假總數
     const staffShifts = schedules[currentMonth]?.[staff.id] || {};
     let regularCount = 0;
@@ -554,28 +511,16 @@ const GroupManager = ({
   setGroups,
   staffList,
 }: {
-  groups: {
-    id: string; // 群組 ID，例如 "g1"
-    name: string; // 群組名稱，例如 "早班 (甜點)"
-    memberIds: string[]; // 成員 ID 陣列，例如 ["200043", "190098", ...]
-  }[];
-  setGroups: React.Dispatch<
-    React.SetStateAction<
-      {
-        id: string;
-        name: string;
-        memberIds: string[];
-      }[]
-    >
-  >;
-  staffList: { id: string; name: string; title: string }[];
+  groups: Group[];
+  setGroups: React.Dispatch<React.SetStateAction<Group[]>>;
+  staffList: Staff[];
 }) => {
   const [newGroupName, setNewGroupName] = useState("");
 
   // 新增群組
   const handleAddGroup = () => {
     if (!newGroupName.trim()) return;
-    const newGroup = {
+    const newGroup: Group = {
       id: `g_${Date.now()}`,
       name: newGroupName,
       memberIds: [],
@@ -600,42 +545,23 @@ const GroupManager = ({
 
   // 加入成員到群組 (需處理 Exclusive Logic: 從其他群組移除)
   const handleAddMember = (groupId: string, staffId: string) => {
-    setGroups(
-      (
-        prevGroups: {
-          id: string; // 群組 ID，例如 "g1"
-          name: string; // 群組名稱，例如 "早班 (甜點)"
-          memberIds: string[]; // 成員 ID 陣列，例如 ["200043", "190098", ...]
-        }[],
-      ) => {
-        // 1. 先從所有群組中移除該 staffId
-        const clearedGroups = prevGroups.map(
-          (g: {
-            id: string; // 群組 ID，例如 "g1"
-            name: string; // 群組名稱，例如 "早班 (甜點)"
-            memberIds: string[]; // 成員 ID 陣列，例如 ["200043", "190098", ...]
-          }) => ({
-            ...g,
-            memberIds: g.memberIds.filter((id: string) => id !== staffId),
-          }),
-        );
+    setGroups((prevGroups: Group[]) => {
+      // 1. 先從所有群組中移除該 staffId
+      const clearedGroups = prevGroups.map((g: Group) => ({
+        ...g,
+        memberIds: g.memberIds.filter((id: string) => id !== staffId),
+      }));
 
-        // 2. 加入到目標群組
-        return clearedGroups.map(
-          (g: {
-            id: string; // 群組 ID，例如 "g1"
-            name: string; // 群組名稱，例如 "早班 (甜點)"
-            memberIds: string[]; // 成員 ID 陣列，例如 ["200043", "190098", ...]
-          }) =>
-            g.id === groupId
-              ? {
-                  ...g,
-                  memberIds: [...g.memberIds, staffId],
-                }
-              : g,
-        );
-      },
-    );
+      // 2. 加入到目標群組
+      return clearedGroups.map((g: Group) =>
+        g.id === groupId
+          ? {
+              ...g,
+              memberIds: [...g.memberIds, staffId],
+            }
+          : g,
+      );
+    });
   };
 
   // 移除成員
@@ -804,16 +730,8 @@ const StaffManager = ({
   staffList,
   setStaffList,
 }: {
-  staffList: { id: string; name: string; title: string }[];
-  setStaffList: React.Dispatch<
-    React.SetStateAction<
-      {
-        id: string;
-        name: string;
-        title: string;
-      }[]
-    >
-  >;
+  staffList: Staff[];
+  setStaffList: React.Dispatch<React.SetStateAction<Staff[]>>;
 }) => {
   const [newStaff, setNewStaff] = useState({
     id: "",
@@ -933,30 +851,14 @@ const HolidayManager = ({
   holidays,
   setHolidays,
 }: {
-  holidays: {
-    date: string;
-    name: string;
-    isOff: string;
-    color: string;
-    type: string;
-  }[];
-  setHolidays: React.Dispatch<
-    React.SetStateAction<
-      {
-        date: string;
-        name: string;
-        isOff: string;
-        color: string;
-        type: "NATIONAL" | "WEEKEND" | "MANUAL";
-      }[]
-    >
-  >;
+  holidays: Holiday[];
+  setHolidays: React.Dispatch<React.SetStateAction<Holiday[]>>;
 }) => {
   const [jsonInput, setJsonInput] = useState("");
   const [formData, setFormData] = useState({
     date: "",
     name: "",
-    type: "NATIONAL",
+    type: "NATIONAL" as HolidayType,
   });
 
   const handleSaveManual = () => {
@@ -970,41 +872,25 @@ const HolidayManager = ({
         ? "bg-red-500 text-white"
         : "bg-red-50 text-red-500";
 
-    const newHoliday = {
+    const newHoliday: Holiday = {
       date: formData.date,
       name: formData.name,
       isOff: "2",
       color: colorClass,
-      type: formData.type as "NATIONAL" | "WEEKEND" | "MANUAL",
+      type: formData.type,
     };
 
-    setHolidays(
-      (
-        prev: {
-          date: string;
-          name: string;
-          isOff: string;
-          color: string;
-          type: "NATIONAL" | "WEEKEND" | "MANUAL";
-        }[],
-      ) => {
-        const filtered = prev.filter((h) => h.date !== formData.date);
-        return [...filtered, newHoliday].sort((a, b) =>
-          a.date.localeCompare(b.date),
-        );
-      },
-    );
+    setHolidays((prev: Holiday[]) => {
+      const filtered = prev.filter((h) => h.date !== formData.date);
+      return [...filtered, newHoliday].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+    });
 
-    setFormData({ date: "", name: "", type: "NATIONAL" });
+    setFormData({ date: "", name: "", type: "NATIONAL" as HolidayType });
   };
 
-  const handleEdit = (h: {
-    date: string;
-    name: string;
-    isOff: string;
-    color: string;
-    type: string;
-  }) => {
+  const handleEdit = (h: Holiday) => {
     setFormData({
       date: h.date,
       name: h.name || "",
@@ -1015,7 +901,7 @@ const HolidayManager = ({
   const handleImport = (onlySpecial = false) => {
     try {
       const parsed = JSON.parse(jsonInput);
-      const newHolidays = parsed
+      const newHolidays: Holiday[] = parsed
         .filter(
           (item: {
             西元日期: string;
@@ -1037,10 +923,13 @@ const HolidayManager = ({
           }) => {
             // 轉換 20260101 -> 2026-01-01
             const d = item.西元日期;
-            const dateStr = `${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)}`;
+            const dateStr = `${d.substring(0, 4)}-${d.substring(
+              4,
+              6,
+            )}-${d.substring(6, 8)}`;
 
             let colorClass = "";
-            let type: "NATIONAL" | "WEEKEND" | "MANUAL" = "WEEKEND";
+            let type: HolidayType = "WEEKEND";
 
             if (item.備註) {
               colorClass = "bg-red-400 text-white"; // 國定假日
@@ -1060,38 +949,18 @@ const HolidayManager = ({
         );
 
       // 合併去重
-      const merged = [...holidays, ...newHolidays].reduce((acc, curr) => {
-        acc[curr.date] = curr;
-        return acc;
-      }, {}) as {
-        date: string;
-        name: string;
-        isOff: string;
-        color: string;
-        type: "NATIONAL" | "WEEKEND" | "MANUAL";
-      }[];
+      const merged = [...holidays, ...newHolidays].reduce(
+        (acc, curr) => {
+          acc[curr.date] = curr;
+          return acc;
+        },
+        {} as { [date: string]: Holiday },
+      );
 
       setHolidays(
-        Object.values(merged).sort(
-          (
-            a: {
-              date: string;
-              name: string;
-              isOff: string;
-              color: string;
-              type: "NATIONAL" | "WEEKEND" | "MANUAL";
-            },
-            b: {
-              date: string;
-              name: string;
-              isOff: string;
-              color: string;
-              type: "NATIONAL" | "WEEKEND" | "MANUAL";
-            },
-          ) => {
-            return a.date.localeCompare(b.date);
-          },
-        ),
+        Object.values(merged).sort((a: Holiday, b: Holiday) => {
+          return a.date.localeCompare(b.date);
+        }),
       );
       alert(`成功匯入 ${newHolidays.length} 筆資料`);
       setJsonInput("");
@@ -1134,7 +1003,7 @@ const HolidayManager = ({
                 value={formData.type}
                 label="類型"
                 onChange={(e) =>
-                  setFormData({ ...formData, type: e.target.value })
+                  setFormData({ ...formData, type: e.target.value as HolidayType })
                 }
               >
                 <MenuItem value="NATIONAL">國定假日 (紅底白字)</MenuItem>
@@ -1206,7 +1075,11 @@ const HolidayManager = ({
                 </span>
                 {h.name && (
                   <span
-                    className={`text-xs px-2 py-0.5 rounded ${h.type === "NATIONAL" ? "bg-red-100 text-red-700 font-bold" : "bg-gray-200"}`}
+                    className={`text-xs px-2 py-0.5 rounded ${
+                      h.type === "NATIONAL"
+                        ? "bg-red-100 text-red-700 font-bold"
+                        : "bg-gray-200"
+                    }`}
                   >
                     {h.name}
                   </span>
@@ -1227,16 +1100,8 @@ const HolidayManager = ({
                   size="small"
                   color="error"
                   onClick={() =>
-                    setHolidays(
-                      (
-                        prev: {
-                          date: string;
-                          name: string;
-                          isOff: string;
-                          color: string;
-                          type: "NATIONAL" | "WEEKEND" | "MANUAL";
-                        }[],
-                      ) => prev.filter((x) => x.date !== h.date),
+                    setHolidays((prev: Holiday[]) =>
+                      prev.filter((x) => x.date !== h.date),
                     )
                   }
                   style={{ minWidth: "30px" }}
@@ -1263,20 +1128,8 @@ const ShiftManager = ({
   setConfig,
 }: {
   currentMonth: string;
-  config: {
-    [yearMonth: string]: {
-      regular: number; // 常規天數
-      leave: number; // 請假天數
-      national: number; // 國定假日天數
-    };
-  };
-  setConfig: (newConfig: {
-    [yearMonth: string]: {
-      regular: number; // 常規天數
-      leave: number; // 請假天數
-      national: number; // 國定假日天數
-    };
-  }) => void;
+  config: MonthlyConfigs;
+  setConfig: (newConfig: MonthlyConfigs) => void;
 }) => {
   // 本地狀態：顯示的起始月份
   const [startMonthStr, setStartMonthStr] = useState(currentMonth);
@@ -1312,7 +1165,7 @@ const ShiftManager = ({
 
   const handleChange = (month: string, type: string, val: string) => {
     const num = parseInt(val) || 0;
-    const monthConfig = config[month] || {
+    const monthConfig: MonthConfig = config[month] || {
       regular: 4,
       leave: 4,
       national: 0,

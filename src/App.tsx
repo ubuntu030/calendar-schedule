@@ -24,32 +24,33 @@ import {
   ShiftManager,
 } from "./components/SubComponent";
 import { DEFAULT_GROUPS, DEFAULT_HOLIDAYS, DEFAULT_STAFF } from "./defaultData";
+import type {
+  Staff,
+  Group,
+  Schedules,
+  Holiday,
+  MonthlyConfigs,
+} from "./types";
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState(0);
   const [currentDate, setCurrentDate] = useState(new Date());
 
   // 初始資料
-  const [staffList, setStaffList] = useState(DEFAULT_STAFF);
+  const [staffList, setStaffList] = useState<Staff[]>(DEFAULT_STAFF);
 
   // 分組資料狀態
-  const [groups, setGroups] = useState(DEFAULT_GROUPS);
+  const [groups, setGroups] = useState<Group[]>(DEFAULT_GROUPS);
 
-  const [schedules, setSchedules] = useState<{
-    [yearMonth: string]: { [staffId: string]: { [day: string]: string } };
-  }>({});
-  const [holidays, setHolidays] = useState(DEFAULT_HOLIDAYS);
-  const [monthlyConfig, setMonthlyConfig] = useState<{
-    [yearMonth: string]: { regular: number; leave: number; national: number };
-  }>({});
+  const [schedules, setSchedules] = useState<Schedules>({});
+  const [holidays, setHolidays] = useState<Holiday[]>(DEFAULT_HOLIDAYS);
+  const [monthlyConfig, setMonthlyConfig] = useState<MonthlyConfigs>({});
 
   // 更新排班
   const handleUpdateShift = (staffId: string, day: string, value: string) => {
     const currentMonthString = format(currentDate, "yyyy-MM");
     setSchedules(
-      (prev: {
-        [yearMonth: string]: { [staffId: string]: { [day: string]: string } };
-      }) => {
+      (prev: Schedules) => {
         const monthData = prev[currentMonthString] || {};
         const staffData = monthData[staffId] || {};
         return {
