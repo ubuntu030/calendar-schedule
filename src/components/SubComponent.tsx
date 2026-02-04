@@ -147,21 +147,25 @@ const ScheduleTable = ({
     const holiday: Holiday | undefined = holidays.find(
       (h) => h.date === dateStr,
     );
+    // 規則 1: 僅針對特定節日 (isOff === "2") 進行檢查，一般日子不檢查
     if (!holiday || holiday.isOff !== "2") return { pass: true };
 
     // 取得當日所有有排班的員工 (不分組)
+    // 排除 "休" (Leave) 與 "例" (Regular Day Off)
     const workers = staffList.filter((staff) => {
       const shift =
         schedules[currentMonth]?.[staff.id]?.[dateStr.split("-")[2]] || "";
       return shift && shift !== "休" && shift !== "例";
     });
 
+    // 規則 2: 檢查是否有主廚 (Chef) 或副主廚 (Sous chef) 值班
     const hasChef = workers.some(
       (w) => w.title.includes("Chef") || w.title.includes("Sous"),
     );
 
+    // 規則 3: 最低人力需求檢查
     if (workers.length < 2) return { pass: false, msg: "人力不足" };
-    if (!hasChef) return { pass: false, msg: "缺主廚" };
+    if (!hasChef) return { pass: false, msg: "缺主廚" }; // 必須有主廚
 
     return { pass: true };
   };
@@ -305,9 +309,23 @@ const ScheduleTable = ({
           {/* 節日資訊列 */}
           <tr>
             <th className="sticky left-0 top-0 z-40 bg-slate-50 border-b border-r border-gray-200 min-w-35 p-2 text-left text-xs font-normal text-gray-500">
-              <div className="flex items-center gap-1">
-                <AlertTriangle size={12} /> 規則提示
-              </div>
+              <Tooltip
+                title={
+                  <div className="text-xs">
+                    <div className="font-bold mb-1">排班規則 (僅國定假日):</div>
+                    <ul className="list-disc pl-4">
+                      <li>上班人數需 2 人以上</li>
+                      <li>需包含 Chef 或 Sous chef</li>
+                    </ul>
+                  </div>
+                }
+                arrow
+                placement="right"
+              >
+                <div className="flex items-center gap-1 cursor-help w-fit">
+                  <AlertTriangle size={12} /> 規則提示
+                </div>
+              </Tooltip>
             </th>
             {days.map((d, index) => {
               const dateStr = formatDate(d);
@@ -331,7 +349,7 @@ const ScheduleTable = ({
                     {holiday?.name}
                   </div>
                   {!rule.pass && (
-                    <div className="absolute -top-3 left-0 w-full flex justify-center z-50">
+                    <div className="absolute left-0 w-full flex justify-center z-50">
                       <span className="bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5 whitespace-nowrap animate-pulse">
                         {rule.msg}
                       </span>
