@@ -32,15 +32,7 @@ import {
 } from "lucide-react";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { format, addMonths, subMonths } from "date-fns";
-import type {
-  Staff,
-  Group,
-  Holiday,
-  Schedules,
-  MonthlyConfigs,
-  HolidayType,
-  MonthConfig,
-} from "../types";
+import type { Staff, Group, Holiday, HolidayType, MonthConfig } from "../types";
 import {
   DEFAULT_MONTH_CONFIG,
   SHIFT_MANAGER_LEAVE_TYPES,
@@ -48,7 +40,12 @@ import {
   TITLE_WEIGHTS,
 } from "../constants";
 import { getTitleColor } from "../utils/style";
-import { useSchedule } from "../ScheduleContext";
+import { useSchedule } from "../contexts/ScheduleContext";
+import {
+  TableHoverContext,
+  useTableHover,
+} from "../contexts/TableHoverContext";
+import { useNotification } from "../contexts/NotificationContext";
 // [Refactor] 引入 Context Hook
 
 /**
@@ -81,19 +78,6 @@ const sortStaff = (staffList: Staff[]) => {
 // 工具：Tailwind Class 合併 (簡易版 clsx)
 const cn = (...classes: (string | boolean | undefined)[]) =>
   classes.filter((c): c is string => typeof c === "string").join(" ");
-
-// [Perf] 建立 TableHoverContext 來管理滑鼠懸停狀態，避免整個表格因 hover 而重新渲染
-interface TableHoverContextType {
-  hoveredColIndex: number | null;
-  setHoveredColIndex: (index: number | null) => void;
-}
-
-const TableHoverContext = React.createContext<TableHoverContextType>({
-  hoveredColIndex: null,
-  setHoveredColIndex: () => {},
-});
-
-const useTableHover = () => useContext(TableHoverContext);
 
 /**
  * ============================================================================
@@ -919,6 +903,7 @@ const StaffManager = () => {
  */
 const HolidayManager = () => {
   const { holidays, setHolidays } = useSchedule();
+  const { showNotification } = useNotification();
 
   const [jsonInput, setJsonInput] = useState("");
   const [formData, setFormData] = useState({
@@ -929,7 +914,7 @@ const HolidayManager = () => {
 
   const handleSaveManual = () => {
     if (!formData.date) {
-      alert("請選擇日期");
+      showNotification("請選擇日期", "warning");
       return;
     }
 
@@ -1028,10 +1013,10 @@ const HolidayManager = () => {
           return a.date.localeCompare(b.date);
         }),
       );
-      alert(`成功匯入 ${newHolidays.length} 筆資料`);
+      showNotification(`成功匯入 ${newHolidays.length} 筆資料`, "success");
       setJsonInput("");
     } catch (e) {
-      alert("JSON 格式錯誤，請確認");
+      showNotification("JSON 格式錯誤，請確認", "error");
     }
   };
 
@@ -1198,6 +1183,7 @@ const HolidayManager = () => {
 const ShiftManager = ({ currentMonth }: { currentMonth: string }) => {
   // [Refactor] 從 Context 取得資料
   const { monthlyConfig, setMonthlyConfig } = useSchedule();
+  const { showNotification } = useNotification();
 
   // 本地狀態：顯示的起始月份
   const [startMonthStr, setStartMonthStr] = useState(currentMonth);
@@ -1256,7 +1242,7 @@ const ShiftManager = ({ currentMonth }: { currentMonth: string }) => {
         [targetMonth]: { ...prevConfig },
       });
     } else {
-      alert(`找不到上個月 (${prevMonthStr}) 的設定資料`);
+      showNotification(`找不到上個月 (${prevMonthStr}) 的設定資料`, "warning");
     }
   };
 
@@ -1376,6 +1362,7 @@ const DataManager = () => {
     monthlyConfig,
     setMonthlyConfig,
   } = useSchedule();
+  const { showNotification } = useNotification();
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -1406,7 +1393,7 @@ const DataManager = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    alert("資料已成功匯出為 JSON 檔案！");
+    showNotification("資料已成功匯出為 JSON 檔案！", "success");
   };
 
   // 處理匯入
@@ -1445,12 +1432,13 @@ const DataManager = () => {
           setSchedules(importedData.schedules);
           setHolidays(importedData.holidays);
           setMonthlyConfig(importedData.monthlyConfig);
-          alert("資料匯入成功！頁面將會同步更新。");
+          showNotification("資料匯入成功！頁面將會同步更新。", "success");
         }
       } catch (error) {
         console.error("Import failed:", error);
-        alert(
+        showNotification(
           `匯入失敗: ${error instanceof Error ? error.message : "未知錯誤"}`,
+          "error",
         );
       } finally {
         // 清空 file input 以便下次能觸發 onChange

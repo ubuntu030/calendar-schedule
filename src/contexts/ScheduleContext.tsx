@@ -6,8 +6,8 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { DEFAULT_GROUPS, DEFAULT_HOLIDAYS, DEFAULT_STAFF } from "./defaultData";
-import type { Staff, Group, Schedules, Holiday, MonthlyConfigs } from "./types";
+import { DEFAULT_GROUPS, DEFAULT_HOLIDAYS, DEFAULT_STAFF } from "../defaultData";
+import type { Staff, Group, Schedules, Holiday, MonthlyConfigs } from "../types";
 
 // [Refactor] 定義 Context 的資料型別，包含狀態與操作函式
 interface ScheduleContextType {

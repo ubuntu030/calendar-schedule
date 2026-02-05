@@ -28,7 +28,11 @@ import {
 } from "./components/SubComponent";
 import { DEFAULT_MONTH_CONFIG } from "./constants";
 import { exportAnnualScheduleToExcel } from "./utils/excelExport";
-import { ScheduleProvider, useSchedule } from "./ScheduleContext";
+import { ScheduleProvider, useSchedule } from "./contexts/ScheduleContext";
+import {
+  NotificationProvider,
+  useNotification,
+} from "./contexts/NotificationContext";
 // [Refactor] 引入 Context Provider 和 Hook
 
 // [Refactor] 將主要邏輯抽離為子組件，以便使用 useSchedule Hook
@@ -39,6 +43,7 @@ function AppContent() {
   // [Refactor] 從 Context 取得所有需要的資料
   const { staffList, groups, schedules, holidays, monthlyConfig } =
     useSchedule();
+  const { showNotification } = useNotification();
 
   const handlePrevMonth = () => {
     setCurrentDate((prevDate) => subMonths(prevDate, 1));
@@ -52,9 +57,6 @@ function AppContent() {
   const handleExportExcel = async () => {
     const year = currentDate.getFullYear();
     try {
-      // 顯示簡易的 Loading 提示 (可選)
-      // alert("正在生成 Excel，請稍候...");
-
       await exportAnnualScheduleToExcel(
         year,
         staffList,
@@ -64,7 +66,7 @@ function AppContent() {
       );
     } catch (error) {
       console.error("Export failed:", error);
-      alert("匯出失敗，請檢查資料是否完整");
+      showNotification("匯出失敗，請檢查資料是否完整", "error");
     }
   };
 
@@ -242,7 +244,9 @@ function AppContent() {
 export default function App() {
   return (
     <ScheduleProvider>
-      <AppContent />
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
     </ScheduleProvider>
   );
 }
