@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useContext } from "react";
+import React, { useState, useMemo } from "react";
 import {
   TextField,
   Button,
@@ -750,14 +750,7 @@ const GroupManager = () => {
  * @returns {JSX.Element} StaffManager Component
  */
 const StaffManager = () => {
-  const {
-    staffList,
-    setStaffList,
-    groups,
-    setGroups,
-    schedules,
-    setSchedules,
-  } = useSchedule();
+  const { staffList, setStaffList, setGroups, setSchedules } = useSchedule();
 
   const [newStaff, setNewStaff] = useState({
     id: "",
