@@ -685,7 +685,14 @@ const GroupManager = () => {
  * @returns {JSX.Element} StaffManager Component
  */
 const StaffManager = () => {
-  const { staffList, setStaffList } = useSchedule();
+  const {
+    staffList,
+    setStaffList,
+    groups,
+    setGroups,
+    schedules,
+    setSchedules,
+  } = useSchedule();
 
   const [newStaff, setNewStaff] = useState({
     id: "",
@@ -700,8 +707,31 @@ const StaffManager = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm("確定刪除此員工？")) {
-      setStaffList(staffList.filter((s) => s.id !== id));
+    if (window.confirm("確定刪除此員工？其所有排班與分組資料將一併被清除。")) {
+      // 1. 從 staffList 移除
+      setStaffList((prev) => prev.filter((s) => s.id !== id));
+
+      // 2. 從 groups 移除
+      setGroups((prevGroups) =>
+        prevGroups.map((g) => ({
+          ...g,
+          memberIds: g.memberIds.filter((memberId) => memberId !== id),
+        })),
+      );
+
+      // 3. 從 schedules 移除
+      setSchedules((prevSchedules) => {
+        const nextSchedules = { ...prevSchedules };
+        Object.keys(nextSchedules).forEach((month) => {
+          const monthSchedule = nextSchedules[month];
+          if (monthSchedule && id in monthSchedule) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { [id]: deleted, ...remainingStaff } = monthSchedule;
+            nextSchedules[month] = remainingStaff;
+          }
+        });
+        return nextSchedules;
+      });
     }
   };
 
