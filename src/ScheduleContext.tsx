@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   type ReactNode,
+  useEffect,
 } from "react";
 import { DEFAULT_GROUPS, DEFAULT_HOLIDAYS, DEFAULT_STAFF } from "./defaultData";
 import type { Staff, Group, Schedules, Holiday, MonthlyConfigs } from "./types";
@@ -32,14 +33,40 @@ const ScheduleContext = createContext<ScheduleContextType | undefined>(
   undefined,
 );
 
+// [Refactor] 獨立為 useLocalStorage Hook，處理資料持久化
+function useLocalStorage<T>(
+  key: string,
+  initialValue: T,
+): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error(`Error setting localStorage key "${key}":`, error);
+    }
+  }, [key, value]);
+
+  return [value, setValue];
+}
+
 // [Refactor] 建立 Provider 組件，封裝所有狀態邏輯
 export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
-  // 初始資料 (從 App.tsx 搬移過來)
-  const [staffList, setStaffList] = useState<Staff[]>(DEFAULT_STAFF);
-  const [groups, setGroups] = useState<Group[]>(DEFAULT_GROUPS);
-  const [schedules, setSchedules] = useState<Schedules>({});
-  const [holidays, setHolidays] = useState<Holiday[]>(DEFAULT_HOLIDAYS);
-  const [monthlyConfig, setMonthlyConfig] = useState<MonthlyConfigs>({});
+  // 初始資料改為從 localStorage 讀取，若無則使用預設值
+  const [staffList, setStaffList] = useLocalStorage<Staff[]>("staffList", DEFAULT_STAFF);
+  const [groups, setGroups] = useLocalStorage<Group[]>("groups", DEFAULT_GROUPS);
+  const [schedules, setSchedules] = useLocalStorage<Schedules>("schedules", {});
+  const [holidays, setHolidays] = useLocalStorage<Holiday[]>("holidays", DEFAULT_HOLIDAYS);
+  const [monthlyConfig, setMonthlyConfig] = useLocalStorage<MonthlyConfigs>("monthlyConfig", {});
 
   // [Refactor] 更新排班邏輯
   // 注意：這裡需要傳入 monthStr (yyyy-MM)，因為 Context 不知道 UI 當前選在哪個月份

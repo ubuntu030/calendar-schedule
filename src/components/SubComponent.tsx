@@ -16,13 +16,15 @@ import {
 import {
   AlertTriangle,
   Save,
-  Upload,
+  Upload, // Used in HolidayManager and DataManager
   Plus,
   Trash2,
   Layers,
   X,
   Edit,
   Settings,
+  Database,
+  Download,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -1245,10 +1247,167 @@ const ShiftManager = ({ currentMonth }: { currentMonth: string }) => {
   );
 };
 
+/**
+ * 資料管理組件
+ * 負責匯入/匯出所有應用程式資料 (JSON)
+ * @returns {JSX.Element} DataManager Component
+ */
+const DataManager = () => {
+  const {
+    staffList,
+    setStaffList,
+    groups,
+    setGroups,
+    schedules,
+    setSchedules,
+    holidays,
+    setHolidays,
+    monthlyConfig,
+    setMonthlyConfig,
+  } = useSchedule();
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // 將所有狀態打包成一個物件
+  const allData = useMemo(
+    () => ({
+      staffList,
+      groups,
+      schedules,
+      holidays,
+      monthlyConfig,
+    }),
+    [staffList, groups, schedules, holidays, monthlyConfig],
+  );
+
+  // 將資料物件轉換為格式化的 JSON 字串以供顯示
+  const jsonText = useMemo(() => JSON.stringify(allData, null, 2), [allData]);
+
+  // 處理匯出
+  const handleExport = () => {
+    const blob = new Blob([jsonText], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm");
+    link.download = `schedule-data-${timestamp}.json`;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    alert("資料已成功匯出為 JSON 檔案！");
+  };
+
+  // 處理匯入
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result;
+        if (typeof text !== "string") {
+          throw new Error("無法讀取檔案內容。");
+        }
+        const importedData = JSON.parse(text);
+
+        // 簡單驗證匯入的資料結構
+        if (
+          !("staffList" in importedData) ||
+          !("groups" in importedData) ||
+          !("schedules" in importedData) ||
+          !("holidays" in importedData) ||
+          !("monthlyConfig" in importedData)
+        ) {
+          throw new Error("JSON 檔案格式不符。缺少必要的資料鍵。");
+        }
+
+        if (
+          window.confirm(
+            "確定要匯入新資料嗎？這將會覆蓋所有現有資料且無法復原。",
+          )
+        ) {
+          // 使用匯入的資料更新 Context 狀態
+          setStaffList(importedData.staffList);
+          setGroups(importedData.groups);
+          setSchedules(importedData.schedules);
+          setHolidays(importedData.holidays);
+          setMonthlyConfig(importedData.monthlyConfig);
+          alert("資料匯入成功！頁面將會同步更新。");
+        }
+      } catch (error) {
+        console.error("Import failed:", error);
+        alert(`匯入失敗: ${error instanceof Error ? error.message : "未知錯誤"}`);
+      } finally {
+        // 清空 file input 以便下次能觸發 onChange
+        if (event.target) {
+          event.target.value = "";
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      <Card className="p-6 mb-6 bg-slate-50 border-none shadow-sm">
+        <Typography variant="h6" className="flex items-center gap-2 mb-2">
+          <Database size={20} className="text-blue-600" /> 資料管理
+        </Typography>
+        <Typography variant="body2" color="text.secondary" className="mb-4">
+          您可以在此匯出所有設定（人員、分組、班表、節日等）為一個 JSON
+          檔案作為備份，或從備份檔案匯入以還原資料。
+          <br />
+          <strong className="text-red-600">
+            注意：匯入將會覆蓋所有現有資料且無法復原。
+          </strong>
+        </Typography>
+        <div className="flex gap-4">
+          <Button
+            variant="contained"
+            startIcon={<Download size={18} />}
+            onClick={handleExport}
+          >
+            匯出備份
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<Upload size={18} />}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            從備份匯入
+          </Button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImport}
+            accept="application/json,.json"
+            className="hidden"
+          />
+        </div>
+      </Card>
+
+      <div>
+        <Typography variant="subtitle1" className="mb-2 font-semibold">
+          目前資料預覽 (JSON)
+        </Typography>
+        <textarea
+          readOnly
+          className="w-full h-96 p-3 border border-gray-300 rounded-lg font-mono text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
+          value={jsonText}
+          aria-label="Current data in JSON format"
+        />
+      </div>
+    </div>
+  );
+};
+
 export {
   ScheduleTable,
   GroupManager,
   StaffManager,
   HolidayManager,
   ShiftManager,
+  DataManager,
 };

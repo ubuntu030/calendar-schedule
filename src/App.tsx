@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Layers,
   FileText,
+  Database,
   DownloadCloud,
 } from "lucide-react";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -22,6 +23,7 @@ import {
   HolidayManager,
   ScheduleTable,
   StaffManager,
+  DataManager,
   ShiftManager,
 } from "./components/SubComponent";
 import { DEFAULT_MONTH_CONFIG } from "./constants";
@@ -146,6 +148,8 @@ function AppContent() {
             <Tabs
               value={currentTab}
               onChange={(_, v) => setCurrentTab(v)}
+              variant="scrollable"
+              scrollButtons="auto"
               aria-label="app tabs"
             >
               <Tab
@@ -172,6 +176,11 @@ function AppContent() {
                 icon={<Settings size={18} />}
                 iconPosition="start"
                 label="節日與規則"
+              />
+              <Tab
+                icon={<Database size={18} />}
+                iconPosition="start"
+                label="資料管理"
               />
             </Tabs>
           </Box>
@@ -221,6 +230,7 @@ function AppContent() {
               <ShiftManager currentMonth={format(currentDate, "yyyy-MM")} />
             )}
             {currentTab === 4 && <HolidayManager />}
+            {currentTab === 5 && <DataManager />}
           </div>
         </main>
       </div>
