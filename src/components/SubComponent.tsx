@@ -46,6 +46,8 @@ import {
   TITLE_WEIGHTS,
 } from "../constants";
 import { getTitleColor } from "../utils/style";
+import { useSchedule } from "../ScheduleContext";
+// [Refactor] 引入 Context Hook
 
 /**
  * ============================================================================
@@ -87,32 +89,16 @@ const cn = (...classes: (string | boolean | undefined)[]) =>
 /**
  * 排班主表組件
  * 負責顯示排班表格、處理分組顯示與規則檢查
- * * @param {Object} props
+ * [Refactor] 移除資料類 Props，僅保留 UI 相關的 currentMonth
+ *
+ * @param {Object} props
  * @param {string} props.currentMonth - 當前月份 (YYYY-MM)
- * @param {Staff[]} props.staffList - 員工列表
- * @param {Group[]} props.groups - 分組列表
- * @param {Object} props.schedules - 排班數據
- * @param {Function} props.onUpdateShift - 更新排班函式
- * @param {Holiday[]} props.holidays - 節日列表
- * @param {Object} props.monthlyConfig - 每月假別設定
  */
-const ScheduleTable = ({
-  currentMonth,
-  staffList,
-  groups,
-  schedules,
-  onUpdateShift,
-  holidays,
-  monthlyConfig = {},
-}: {
-  currentMonth: string;
-  staffList: Staff[];
-  groups: Group[];
-  schedules: Schedules;
-  onUpdateShift: (staffId: string, day: string, value: string) => void;
-  holidays: Holiday[];
-  monthlyConfig?: MonthlyConfigs;
-}) => {
+const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
+  // [Refactor] 從 Context 取得所需資料
+  const { staffList, groups, schedules, holidays, monthlyConfig, updateShift } =
+    useSchedule();
+
   // 計算當月日期
   const days = useMemo(() => {
     const [year, month] = currentMonth.split("-").map(Number);
@@ -284,7 +270,8 @@ const ScheduleTable = ({
               <select
                 value={shiftValue}
                 onChange={(e) =>
-                  onUpdateShift(staff.id, dayStr, e.target.value)
+                  // [Refactor] 使用 Context 的 updateShift，並傳入 currentMonth
+                  updateShift(staff.id, dayStr, e.target.value, currentMonth)
                 }
                 className="w-full h-full bg-transparent text-center appearance-none cursor-pointer focus:outline-none focus:bg-white/50 font-bold text-sm z-10 relative"
                 style={{ textAlignLast: "center" }}
@@ -472,20 +459,13 @@ const ScheduleTable = ({
 /**
  * 分組管理組件
  * 提供群組的新增、更名、成員管理功能
- * * @param {Object} props
- * @param {Group[]} props.groups
- * @param {Function} props.setGroups
- * @param {Staff[]} props.staffList
+ * [Refactor] 移除 Props，改用 Context
+ * @returns {JSX.Element} GroupManager Component
  */
-const GroupManager = ({
-  groups,
-  setGroups,
-  staffList,
-}: {
-  groups: Group[];
-  setGroups: React.Dispatch<React.SetStateAction<Group[]>>;
-  staffList: Staff[];
-}) => {
+const GroupManager = () => {
+  // [Refactor] 從 Context 取得資料
+  const { groups, setGroups, staffList } = useSchedule();
+
   const [newGroupName, setNewGroupName] = useState("");
 
   // 新增群組
@@ -696,14 +676,15 @@ const GroupManager = ({
   );
 };
 
-// --- 組件：人員管理 ---
-const StaffManager = ({
-  staffList,
-  setStaffList,
-}: {
-  staffList: Staff[];
-  setStaffList: React.Dispatch<React.SetStateAction<Staff[]>>;
-}) => {
+/**
+ * 人員管理組件
+ * 負責新增、刪除員工，以及設定員工職稱
+ * [Refactor] 移除 Props，改用 Context
+ * @returns {JSX.Element} StaffManager Component
+ */
+const StaffManager = () => {
+  const { staffList, setStaffList } = useSchedule();
+
   const [newStaff, setNewStaff] = useState({
     id: "",
     name: "",
@@ -817,14 +798,15 @@ const StaffManager = ({
   );
 };
 
-// --- 組件：節日管理 ---
-const HolidayManager = ({
-  holidays,
-  setHolidays,
-}: {
-  holidays: Holiday[];
-  setHolidays: React.Dispatch<React.SetStateAction<Holiday[]>>;
-}) => {
+/**
+ * 節日管理組件
+ * 負責新增、編輯、刪除節日，支援 JSON 匯入
+ * [Refactor] 移除 Props，改用 Context
+ * @returns {JSX.Element} HolidayManager Component
+ */
+const HolidayManager = () => {
+  const { holidays, setHolidays } = useSchedule();
+
   const [jsonInput, setJsonInput] = useState("");
   const [formData, setFormData] = useState({
     date: "",
@@ -929,7 +911,7 @@ const HolidayManager = ({
       );
 
       setHolidays(
-        Object.values(merged).sort((a: Holiday, b: Holiday) => {
+        (Object.values(merged) as Holiday[]).sort((a: Holiday, b: Holiday) => {
           return a.date.localeCompare(b.date);
         }),
       );
@@ -974,7 +956,10 @@ const HolidayManager = ({
                 value={formData.type}
                 label="類型"
                 onChange={(e) =>
-                  setFormData({ ...formData, type: e.target.value as HolidayType })
+                  setFormData({
+                    ...formData,
+                    type: e.target.value as HolidayType,
+                  })
                 }
               >
                 <MenuItem value="NATIONAL">國定假日 (紅底白字)</MenuItem>
@@ -1091,17 +1076,16 @@ const HolidayManager = ({
 /**
  * 假別天數管理組件
  * 設定每個月的例假、休假、國假天數
- * 支援一次顯示三個月，並可左右切換
+ * 支援一次顯示四個月，並可左右切換
+ * [Refactor] 移除 config/setConfig Props，保留 currentMonth
+ *
+ * @param {Object} props
+ * @param {string} props.currentMonth - 當前月份 (YYYY-MM)
  */
-const ShiftManager = ({
-  currentMonth,
-  config,
-  setConfig,
-}: {
-  currentMonth: string;
-  config: MonthlyConfigs;
-  setConfig: (newConfig: MonthlyConfigs) => void;
-}) => {
+const ShiftManager = ({ currentMonth }: { currentMonth: string }) => {
+  // [Refactor] 從 Context 取得資料
+  const { monthlyConfig, setMonthlyConfig } = useSchedule();
+
   // 本地狀態：顯示的起始月份
   const [startMonthStr, setStartMonthStr] = useState(currentMonth);
 
@@ -1136,9 +1120,10 @@ const ShiftManager = ({
 
   const handleChange = (month: string, type: string, val: string) => {
     const num = parseInt(val) || 0;
-    const monthConfig: MonthConfig = config[month] || DEFAULT_MONTH_CONFIG;
-    setConfig({
-      ...config,
+    const monthConfig: MonthConfig =
+      monthlyConfig[month] || DEFAULT_MONTH_CONFIG;
+    setMonthlyConfig({
+      ...monthlyConfig,
       [month]: {
         ...monthConfig,
         [type]: num,
@@ -1150,11 +1135,11 @@ const ShiftManager = ({
   const handleCopyPrev = (targetMonth: string) => {
     const date = getMonthDate(targetMonth);
     const prevMonthStr = format(subMonths(date, 1), "yyyy-MM");
-    const prevConfig = config[prevMonthStr];
+    const prevConfig = monthlyConfig[prevMonthStr];
 
     if (prevConfig) {
-      setConfig({
-        ...config,
+      setMonthlyConfig({
+        ...monthlyConfig,
         [targetMonth]: { ...prevConfig },
       });
     } else {
@@ -1182,7 +1167,7 @@ const ShiftManager = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {monthsToDisplay.map((month) => {
-          const monthConfig = config[month] || DEFAULT_MONTH_CONFIG;
+          const monthConfig = monthlyConfig[month] || DEFAULT_MONTH_CONFIG;
           const totalDays =
             monthConfig.regular + monthConfig.leave + monthConfig.national;
           const isCurrent = month === currentMonth;

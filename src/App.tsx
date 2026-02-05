@@ -24,40 +24,19 @@ import {
   StaffManager,
   ShiftManager,
 } from "./components/SubComponent";
-import { DEFAULT_GROUPS, DEFAULT_HOLIDAYS, DEFAULT_STAFF } from "./defaultData";
 import { DEFAULT_MONTH_CONFIG } from "./constants";
-import type { Staff, Group, Schedules, Holiday, MonthlyConfigs } from "./types";
 import { exportAnnualScheduleToExcel } from "./utils/excelExport";
+import { ScheduleProvider, useSchedule } from "./ScheduleContext";
+// [Refactor] 引入 Context Provider 和 Hook
 
-export default function App() {
+// [Refactor] 將主要邏輯抽離為子組件，以便使用 useSchedule Hook
+function AppContent() {
   const [currentTab, setCurrentTab] = useState(0);
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // 初始資料
-  const [staffList, setStaffList] = useState<Staff[]>(DEFAULT_STAFF);
-
-  // 分組資料狀態
-  const [groups, setGroups] = useState<Group[]>(DEFAULT_GROUPS);
-
-  const [schedules, setSchedules] = useState<Schedules>({});
-  const [holidays, setHolidays] = useState<Holiday[]>(DEFAULT_HOLIDAYS);
-  const [monthlyConfig, setMonthlyConfig] = useState<MonthlyConfigs>({});
-
-  // 更新排班
-  const handleUpdateShift = (staffId: string, day: string, value: string) => {
-    const currentMonthString = format(currentDate, "yyyy-MM");
-    setSchedules((prev: Schedules) => {
-      const monthData = prev[currentMonthString] || {};
-      const staffData = monthData[staffId] || {};
-      return {
-        ...prev,
-        [currentMonthString]: {
-          ...monthData,
-          [staffId]: { ...staffData, [day]: value },
-        },
-      };
-    });
-  };
+  // [Refactor] 從 Context 取得所有需要的資料
+  const { staffList, groups, schedules, holidays, monthlyConfig } =
+    useSchedule();
 
   const handlePrevMonth = () => {
     setCurrentDate((prevDate) => subMonths(prevDate, 1));
@@ -229,38 +208,31 @@ export default function App() {
                 </div>
                 <ScheduleTable
                   currentMonth={format(currentDate, "yyyy-MM")}
-                  staffList={staffList}
-                  groups={groups}
-                  schedules={schedules}
-                  onUpdateShift={handleUpdateShift}
-                  holidays={holidays}
-                  monthlyConfig={monthlyConfig}
+                  // [Refactor] 不再需要傳遞資料 Props
                 />
               </div>
             )}
             {currentTab === 1 && (
-              <GroupManager
-                groups={groups}
-                setGroups={setGroups}
-                staffList={staffList}
-              />
+              // [Refactor] 組件內部自行使用 Context
+              <GroupManager />
             )}
-            {currentTab === 2 && (
-              <StaffManager staffList={staffList} setStaffList={setStaffList} />
-            )}
+            {currentTab === 2 && <StaffManager />}
             {currentTab === 3 && (
-              <ShiftManager
-                currentMonth={format(currentDate, "yyyy-MM")}
-                config={monthlyConfig}
-                setConfig={setMonthlyConfig}
-              />
+              <ShiftManager currentMonth={format(currentDate, "yyyy-MM")} />
             )}
-            {currentTab === 4 && (
-              <HolidayManager holidays={holidays} setHolidays={setHolidays} />
-            )}
+            {currentTab === 4 && <HolidayManager />}
           </div>
         </main>
       </div>
     </LocalizationProvider>
+  );
+}
+
+// [Refactor] 根組件負責提供 Context
+export default function App() {
+  return (
+    <ScheduleProvider>
+      <AppContent />
+    </ScheduleProvider>
   );
 }
