@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useContext } from "react";
 import {
   TextField,
   Button,
@@ -82,6 +82,19 @@ const sortStaff = (staffList: Staff[]) => {
 const cn = (...classes: (string | boolean | undefined)[]) =>
   classes.filter((c): c is string => typeof c === "string").join(" ");
 
+// [Perf] 建立 TableHoverContext 來管理滑鼠懸停狀態，避免整個表格因 hover 而重新渲染
+interface TableHoverContextType {
+  hoveredColIndex: number | null;
+  setHoveredColIndex: (index: number | null) => void;
+}
+
+const TableHoverContext = React.createContext<TableHoverContextType>({
+  hoveredColIndex: null,
+  setHoveredColIndex: () => {},
+});
+
+const useTableHover = () => useContext(TableHoverContext);
+
 /**
  * ============================================================================
  * 2. SUB-COMPONENTS (子組件層)
@@ -89,112 +102,131 @@ const cn = (...classes: (string | boolean | undefined)[]) =>
  */
 
 /**
- * 排班主表組件
- * 負責顯示排班表格、處理分組顯示與規則檢查
- * [Refactor] 移除資料類 Props，僅保留 UI 相關的 currentMonth
- *
- * @param {Object} props
- * @param {string} props.currentMonth - 當前月份 (YYYY-MM)
+ * [Perf] 單一班別儲存格組件
+ * 使用 React.memo 優化，僅在相關 props 變更時才重新渲染
  */
-const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
-  // [Refactor] 從 Context 取得所需資料
-  const { staffList, groups, schedules, holidays, monthlyConfig, updateShift } =
-    useSchedule();
+const ShiftCell = React.memo(
+  ({
+    staffId,
+    day,
+    index,
+    currentMonth,
+  }: {
+    staffId: string;
+    day: Date;
+    index: number;
+    currentMonth: string;
+  }) => {
+    const { schedules, holidays, updateShift } = useSchedule();
+    const { hoveredColIndex, setHoveredColIndex } = useTableHover();
 
-  // 計算當月日期
-  const days = useMemo(() => {
-    const [year, month] = currentMonth.split("-").map(Number);
-    return getDaysInMonth(year, month);
-  }, [currentMonth]);
+    const dayStr = String(day.getDate()).padStart(2, "0");
+    const shiftValue = schedules[currentMonth]?.[staffId]?.[dayStr] || "";
 
-  const [hoveredColIndex, setHoveredColIndex] = useState<number | null>(null);
+    const holiday = useMemo(() => {
+      const dateStr = format(day, "yyyy-MM-dd");
+      return holidays.find((h) => h.date === dateStr);
+    }, [day, holidays]);
 
-  /**
-   * 日期格式化 (Local Time)
-   * @param {Date} date
-   * @returns {string} YYYY-MM-DD
-   */
-  const formatDate = (date: Date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  };
+    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+    const shiftConfig = SHIFT_OPTIONS.find((s) => s.value === shiftValue);
+    const cellBg = shiftConfig?.value
+      ? shiftConfig.color
+      : holiday?.color?.split(" ")[0] || (isWeekend ? "bg-red-50" : "");
+    const isHovered = hoveredColIndex === index;
 
-  // 取得節日資訊
-  const getHoliday = (dateObj: Date) => {
-    const dateStr = formatDate(dateObj);
-    return holidays.find((h) => h.date === dateStr);
-  };
-
-  /**
-   * 規則檢查引擎
-   * @param {string} dateStr - YYYY-MM-DD
-   */
-  const checkRules = (dateStr: string) => {
-    const holiday: Holiday | undefined = holidays.find(
-      (h) => h.date === dateStr,
+    return (
+      <td
+        className={cn(
+          "border-r border-b border-gray-200 p-0 relative h-12",
+          cellBg,
+          isHovered && "bg-blue-50",
+        )}
+        onMouseEnter={() => setHoveredColIndex(index)}
+        onMouseLeave={() => setHoveredColIndex(null)}
+      >
+        <select
+          value={shiftValue}
+          onChange={(e) =>
+            updateShift(staffId, dayStr, e.target.value, currentMonth)
+          }
+          className="w-full h-full bg-transparent text-center appearance-none cursor-pointer focus:outline-none focus:bg-white/50 font-bold text-sm z-10 relative"
+          style={{ textAlignLast: "center" }}
+        >
+          {SHIFT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </td>
     );
-    // 規則 1: 僅針對特定節日 (isOff === "2") 進行檢查，一般日子不檢查
-    if (!holiday || holiday.isOff !== "2") return { pass: true };
+  },
+);
+ShiftCell.displayName = "ShiftCell";
 
-    // 取得當日所有有排班的員工 (不分組)
-    // 排除 "休" (Leave) 與 "例" (Regular Day Off)
-    const workers = staffList.filter((staff) => {
-      const shift =
-        schedules[currentMonth]?.[staff.id]?.[dateStr.split("-")[2]] || "";
-      return shift && shift !== "休" && shift !== "例";
-    });
+/**
+ * [Perf] 單一員工列組件
+ * 使用 React.memo 優化，避免在其他員工資料變更時重新渲染
+ */
+const StaffRow = React.memo(
+  ({
+    staff,
+    days,
+    currentMonth,
+  }: {
+    staff: Staff;
+    days: Date[];
+    currentMonth: string;
+  }) => {
+    const { schedules, monthlyConfig } = useSchedule();
 
-    // 規則 2: 檢查是否有主廚 (Chef) 或副主廚 (Sous chef) 值班
-    const hasChef = workers.some(
-      (w) => w.title.includes("Chef") || w.title.includes("Sous"),
-    );
+    // 使用 useMemo 計算休假統計，僅在相關資料變更時才重新計算
+    const {
+      regularCount,
+      leaveCount,
+      nationalCount,
+      morningCount,
+      eveningCount,
+      fullCount,
+      isOver,
+    } = useMemo(() => {
+      const staffShifts = schedules[currentMonth]?.[staff.id] || {};
+      const counts = {
+        regular: 0,
+        leave: 0,
+        national: 0,
+        morning: 0,
+        evening: 0,
+        full: 0,
+      };
+      (Object.values(staffShifts) as string[]).forEach((v: string) => {
+        if (v === "例") counts.regular++;
+        if (v === "休") counts.leave++;
+        if (v === "國") counts.national++;
+        if (v === "早") counts.morning++;
+        if (v === "晚") counts.evening++;
+        if (v === "全") counts.full++;
+      });
 
-    // 規則 3: 最低人力需求檢查
-    if (workers.length < 2) return { pass: false, msg: "人力不足" };
-    if (!hasChef) return { pass: false, msg: "缺主廚" }; // 必須有主廚
+      const mConfig = monthlyConfig[currentMonth] || DEFAULT_MONTH_CONFIG;
+      const over =
+        counts.regular > mConfig.regular ||
+        counts.leave > mConfig.leave ||
+        counts.national > mConfig.national;
 
-    return { pass: true };
-  };
+      return {
+        regularCount: counts.regular,
+        leaveCount: counts.leave,
+        nationalCount: counts.national,
+        morningCount: counts.morning,
+        eveningCount: counts.evening,
+        fullCount: counts.full,
+        isOver: over,
+      };
+    }, [schedules, currentMonth, staff.id, monthlyConfig]);
 
-  // --- 分組渲染邏輯 ---
-  // 1. 找出所有已分組的 ID
-  const groupedStaffIds = new Set(groups.flatMap((g: Group) => g.memberIds));
-
-  // 2. 找出未分組的員工
-  const ungroupedStaff = staffList.filter((s) => !groupedStaffIds.has(s.id));
-
-  /**
-   * 渲染單一員工列
-   * @param {Staff} staff
-   */
-  const renderStaffRow = (staff: Staff) => {
-    // 計算該員工目前的休假總數
-    const staffShifts = schedules[currentMonth]?.[staff.id] || {};
-    let regularCount = 0;
-    let leaveCount = 0;
-    let nationalCount = 0;
-    let morningCount = 0;
-    let eveningCount = 0;
-    let fullCount = 0;
-
-    (Object.values(staffShifts) as string[]).forEach((v: string) => {
-      if (v === "例") regularCount++;
-      if (v === "休") leaveCount++;
-      if (v === "國") nationalCount++;
-      if (v === "早") morningCount++;
-      if (v === "晚") eveningCount++;
-      if (v === "全") fullCount++;
-    });
-
-    // 取得當月設定目標
     const mConfig = monthlyConfig[currentMonth] || DEFAULT_MONTH_CONFIG;
-
-    const isOver =
-      regularCount > mConfig.regular ||
-      leaveCount > mConfig.leave ||
-      nationalCount > mConfig.national;
 
     const getStatusColor = (count: number, limit: number) => {
       if (count > limit) return "text-red-300 font-bold";
@@ -221,7 +253,7 @@ const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
     );
 
     return (
-      <tr key={staff.id} className="hover:bg-blue-50 group transition-colors">
+      <tr className="hover:bg-blue-50 group transition-colors">
         <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-b border-gray-200 p-2 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1">
@@ -246,215 +278,264 @@ const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
             </span>
           </div>
         </td>
-        {days.map((d, index) => {
-          const dayStr = String(d.getDate()).padStart(2, "0");
-          const shiftValue =
-            schedules[currentMonth]?.[staff.id]?.[dayStr] || "";
-          const holiday = getHoliday(d);
-          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-          const shiftConfig = SHIFT_OPTIONS.find((s) => s.value === shiftValue);
-          const cellBg = shiftConfig?.value
-            ? shiftConfig.color
-            : holiday?.color?.split(" ")[0] || (isWeekend ? "bg-red-50" : "");
-          const isHovered = hoveredColIndex === index;
-
-          return (
-            <td
-              key={d.toISOString()}
-              className={cn(
-                "border-r border-b border-gray-200 p-0 relative h-12",
-                cellBg,
-                isHovered && "bg-blue-50",
-              )}
-              onMouseEnter={() => setHoveredColIndex(index)}
-              onMouseLeave={() => setHoveredColIndex(null)}
-            >
-              <select
-                value={shiftValue}
-                onChange={(e) =>
-                  // [Refactor] 使用 Context 的 updateShift，並傳入 currentMonth
-                  updateShift(staff.id, dayStr, e.target.value, currentMonth)
-                }
-                className="w-full h-full bg-transparent text-center appearance-none cursor-pointer focus:outline-none focus:bg-white/50 font-bold text-sm z-10 relative"
-                style={{ textAlignLast: "center" }}
-              >
-                {SHIFT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </td>
-          );
-        })}
+        {days.map((d, index) => (
+          <ShiftCell
+            key={d.toISOString()}
+            staffId={staff.id}
+            day={d}
+            index={index}
+            currentMonth={currentMonth}
+          />
+        ))}
       </tr>
     );
-  };
+  },
+);
+StaffRow.displayName = "StaffRow";
 
-  return (
-    <div className="flex-1 overflow-auto border border-gray-200 rounded-lg shadow-inner bg-white relative">
-      <table className="min-w-full border-collapse text-sm">
-        <thead className="sticky top-0 z-30 bg-white shadow-sm">
-          {/* 節日資訊列 */}
-          <tr>
-            <th className="sticky left-0 top-0 z-40 bg-slate-50 border-b border-r border-gray-200 min-w-35 p-2 text-left text-xs font-normal text-gray-500">
-              <Tooltip
-                title={
-                  <div className="text-xs">
-                    <div className="font-bold mb-1">排班規則 (僅國定假日):</div>
-                    <ul className="list-disc pl-4">
-                      <li>上班人數需 2 人以上</li>
-                      <li>需包含 Chef 或 Sous chef</li>
-                    </ul>
-                  </div>
-                }
-                arrow
-                placement="right"
-              >
-                <div className="flex items-center gap-1 cursor-help w-fit">
-                  <AlertTriangle size={12} /> 規則提示
+/**
+ * [Perf] 表格頭部組件
+ * 使用 React.memo 優化，避免在班表資料變更時重新渲染
+ */
+const ScheduleHeader = React.memo(
+  ({ days, currentMonth }: { days: Date[]; currentMonth: string }) => {
+    const { staffList, schedules, holidays } = useSchedule();
+    const { hoveredColIndex, setHoveredColIndex } = useTableHover();
+
+    const formatDate = (date: Date) => format(date, "yyyy-MM-dd");
+
+    const getHoliday = (dateObj: Date) => {
+      const dateStr = formatDate(dateObj);
+      return holidays.find((h) => h.date === dateStr);
+    };
+
+    const checkRules = (dateStr: string) => {
+      const holiday: Holiday | undefined = holidays.find(
+        (h) => h.date === dateStr,
+      );
+      if (!holiday || holiday.isOff !== "2") return { pass: true };
+      const workers = staffList.filter((staff) => {
+        const shift =
+          schedules[currentMonth]?.[staff.id]?.[dateStr.split("-")[2]] || "";
+        return shift && shift !== "休" && shift !== "例";
+      });
+      const hasChef = workers.some(
+        (w) => w.title.includes("Chef") || w.title.includes("Sous"),
+      );
+      if (workers.length < 2) return { pass: false, msg: "人力不足" };
+      if (!hasChef) return { pass: false, msg: "缺主廚" };
+      return { pass: true };
+    };
+
+    return (
+      <thead className="sticky top-0 z-30 bg-white shadow-sm">
+        {/* 節日資訊列 */}
+        <tr>
+          <th className="sticky left-0 top-0 z-40 bg-slate-50 border-b border-r border-gray-200 min-w-35 p-2 text-left text-xs font-normal text-gray-500">
+            <Tooltip
+              title={
+                <div className="text-xs">
+                  <div className="font-bold mb-1">排班規則 (僅國定假日):</div>
+                  <ul className="list-disc pl-4">
+                    <li>上班人數需 2 人以上</li>
+                    <li>需包含 Chef 或 Sous chef</li>
+                  </ul>
                 </div>
-              </Tooltip>
-            </th>
-            {days.map((d, index) => {
-              const dateStr = formatDate(d);
-              const holiday = getHoliday(d);
-              const rule = checkRules(dateStr);
-              const isHovered = hoveredColIndex === index;
-              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-              return (
-                <th
-                  key={d.toISOString()}
-                  className={cn(
-                    "border-b border-r border-gray-200 text-xs relative h-10 min-w-12 transition-colors",
-                    holiday?.color ||
-                      (isWeekend ? "bg-red-50 text-red-500" : "bg-slate-50"),
-                    isHovered && "bg-blue-50",
-                  )}
-                  onMouseEnter={() => setHoveredColIndex(index)}
-                  onMouseLeave={() => setHoveredColIndex(null)}
-                >
-                  <div className="font-bold text-[10px] leading-tight px-1 truncate">
-                    {holiday?.name}
+              }
+              arrow
+              placement="right"
+            >
+              <div className="flex items-center gap-1 cursor-help w-fit">
+                <AlertTriangle size={12} /> 規則提示
+              </div>
+            </Tooltip>
+          </th>
+          {days.map((d, index) => {
+            const dateStr = formatDate(d);
+            const holiday = getHoliday(d);
+            const rule = checkRules(dateStr);
+            const isHovered = hoveredColIndex === index;
+            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+            return (
+              <th
+                key={d.toISOString()}
+                className={cn(
+                  "border-b border-r border-gray-200 text-xs relative h-10 min-w-12 transition-colors",
+                  holiday?.color ||
+                    (isWeekend ? "bg-red-50 text-red-500" : "bg-slate-50"),
+                  isHovered && "bg-blue-50",
+                )}
+                onMouseEnter={() => setHoveredColIndex(index)}
+                onMouseLeave={() => setHoveredColIndex(null)}
+              >
+                <div className="font-bold text-[10px] leading-tight px-1 truncate">
+                  {holiday?.name}
+                </div>
+                {!rule.pass && (
+                  <div className="absolute left-0 w-full flex justify-center z-50">
+                    <span className="bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5 whitespace-nowrap animate-pulse">
+                      {rule.msg}
+                    </span>
                   </div>
-                  {!rule.pass && (
-                    <div className="absolute left-0 w-full flex justify-center z-50">
-                      <span className="bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5 whitespace-nowrap animate-pulse">
-                        {rule.msg}
+                )}
+              </th>
+            );
+          })}
+        </tr>
+        {/* 日期列 */}
+        <tr className="bg-slate-800 text-white">
+          <th className="sticky left-0 top-10 z-40 bg-slate-800 p-2 text-left border-r border-slate-600">
+            員工 (職稱)
+          </th>
+          {days.map((d) => {
+            const dayStr = String(d.getDate()).padStart(2, "0");
+            const summary: Record<string, string[]> = {};
+            staffList.forEach((staff) => {
+              const val = schedules[currentMonth]?.[staff.id]?.[dayStr];
+              if (val) {
+                if (!summary[val]) summary[val] = [];
+                summary[val].push(staff.name);
+              }
+            });
+
+            const TooltipContent = (
+              <div className="flex flex-col gap-1 text-xs">
+                {SHIFT_OPTIONS.filter(
+                  (opt) => opt.value && summary[opt.value]?.length > 0,
+                ).map((opt) => {
+                  let textColor = "text-white";
+                  if (opt.value === "早") textColor = "text-blue-300";
+                  if (opt.value === "晚") textColor = "text-indigo-300";
+                  if (opt.value === "全") textColor = "text-purple-300";
+                  if (opt.value === "國") textColor = "text-orange-300";
+                  if (opt.value === "例") textColor = "text-gray-400";
+                  if (opt.value === "休") textColor = "text-gray-200";
+
+                  return (
+                    <div key={opt.value}>
+                      <span className={cn("font-bold", textColor)}>
+                        {opt.label} ({summary[opt.value].length}):
+                      </span>{" "}
+                      <span className="text-gray-300">
+                        {summary[opt.value].join("、")}
                       </span>
                     </div>
-                  )}
-                </th>
-              );
-            })}
-          </tr>
-          {/* 日期列 */}
-          <tr className="bg-slate-800 text-white">
-            <th className="sticky left-0 top-10 z-40 bg-slate-800 p-2 text-left border-r border-slate-600">
-              員工 (職稱)
-            </th>
-            {days.map((d) => {
-              // 計算當日排班統計
-              const dayStr = String(d.getDate()).padStart(2, "0");
-              const summary: Record<string, string[]> = {};
-              staffList.forEach((staff) => {
-                const val = schedules[currentMonth]?.[staff.id]?.[dayStr];
-                if (val) {
-                  if (!summary[val]) summary[val] = [];
-                  summary[val].push(staff.name);
-                }
-              });
-
-              const TooltipContent = (
-                <div className="flex flex-col gap-1 text-xs">
-                  {SHIFT_OPTIONS.filter(
-                    (opt) => opt.value && summary[opt.value]?.length > 0,
-                  ).map((opt) => {
-                    let textColor = "text-white";
-                    if (opt.value === "早") textColor = "text-blue-300";
-                    if (opt.value === "晚") textColor = "text-indigo-300";
-                    if (opt.value === "全") textColor = "text-purple-300";
-                    if (opt.value === "國") textColor = "text-orange-300";
-                    if (opt.value === "例") textColor = "text-gray-400";
-                    if (opt.value === "休") textColor = "text-gray-200";
-
-                    return (
-                      <div key={opt.value}>
-                        <span className={cn("font-bold", textColor)}>
-                          {opt.label} ({summary[opt.value].length}):
-                        </span>{" "}
-                        <span className="text-gray-300">
-                          {summary[opt.value].join("、")}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {Object.keys(summary).length === 0 && <div>無排班</div>}
-                </div>
-              );
-
-              return (
-                <Tooltip
-                  key={d.toISOString()}
-                  title={TooltipContent}
-                  arrow
-                  placement="top"
-                >
-                  <th className="border-r border-slate-600 p-1 text-center font-mono w-12 cursor-help hover:bg-slate-700 transition-colors">
-                    <div className="text-sm font-bold">{d.getDate()}</div>
-                    <div className="text-[10px] opacity-60">
-                      {["日", "一", "二", "三", "四", "五", "六"][d.getDay()]}
-                    </div>
-                  </th>
-                </Tooltip>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {/* 1. 渲染分組員工 */}
-          {groups.map((group) => {
-            // 取得該群組的員工並排序
-            const groupStaff = staffList.filter((s) =>
-              group.memberIds.includes(s.id),
+                  );
+                })}
+                {Object.keys(summary).length === 0 && <div>無排班</div>}
+              </div>
             );
-            const sortedGroupStaff = sortStaff(groupStaff);
-
-            if (sortedGroupStaff.length === 0) return null;
 
             return (
-              <React.Fragment key={group.id}>
-                {/* 群組分隔列 (Spacer) */}
+              <Tooltip
+                key={d.toISOString()}
+                title={TooltipContent}
+                arrow
+                placement="top"
+              >
+                <th className="border-r border-slate-600 p-1 text-center font-mono w-12 cursor-help hover:bg-slate-700 transition-colors">
+                  <div className="text-sm font-bold">{d.getDate()}</div>
+                  <div className="text-[10px] opacity-60">
+                    {["日", "一", "二", "三", "四", "五", "六"][d.getDay()]}
+                  </div>
+                </th>
+              </Tooltip>
+            );
+          })}
+        </tr>
+      </thead>
+    );
+  },
+);
+ScheduleHeader.displayName = "ScheduleHeader";
+
+/**
+ * [Perf] 重構後的排班主表組件
+ * 內部使用 memoized 子組件來優化性能
+ *
+ * @param {Object} props
+ * @param {string} props.currentMonth - 當前月份 (YYYY-MM)
+ */
+const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
+  const { staffList, groups } = useSchedule();
+  const [hoveredColIndex, setHoveredColIndex] = useState<number | null>(null);
+
+  // [Perf] 將 hover 狀態放入 context，避免整個 table re-render
+  const hoverContextValue = useMemo(
+    () => ({ hoveredColIndex, setHoveredColIndex }),
+    [hoveredColIndex],
+  );
+
+  // 計算當月日期
+  const days = useMemo(() => {
+    const [year, month] = currentMonth.split("-").map(Number);
+    return getDaysInMonth(year, month);
+  }, [currentMonth]);
+
+  // --- 分組渲染邏輯 ---
+  // 1. 找出所有已分組的 ID
+  const groupedStaffIds = new Set(groups.flatMap((g: Group) => g.memberIds));
+
+  // 2. 找出未分組的員工
+  const ungroupedStaff = staffList.filter((s) => !groupedStaffIds.has(s.id));
+
+  return (
+    <TableHoverContext.Provider value={hoverContextValue}>
+      <div className="flex-1 overflow-auto border border-gray-200 rounded-lg shadow-inner bg-white relative">
+        <table className="min-w-full border-collapse text-sm">
+          <ScheduleHeader days={days} currentMonth={currentMonth} />
+          <tbody>
+            {groups.map((group) => {
+              const groupStaff = staffList.filter((s) =>
+                group.memberIds.includes(s.id),
+              );
+              const sortedGroupStaff = sortStaff(groupStaff);
+              if (sortedGroupStaff.length === 0) return null;
+              return (
+                <React.Fragment key={group.id}>
+                  <tr>
+                    <td
+                      colSpan={days.length + 1}
+                      className="h-6 bg-slate-100 border-b border-t border-gray-200 text-xs text-slate-400 pl-4 font-bold tracking-wider"
+                    >
+                      --- {group.name} ---
+                    </td>
+                  </tr>
+                  {sortedGroupStaff.map((staff) => (
+                    <StaffRow
+                      key={staff.id}
+                      staff={staff}
+                      days={days}
+                      currentMonth={currentMonth}
+                    />
+                  ))}
+                </React.Fragment>
+              );
+            })}
+            {ungroupedStaff.length > 0 && (
+              <>
                 <tr>
                   <td
                     colSpan={days.length + 1}
-                    className="h-6 bg-slate-100 border-b border-t border-gray-200 text-xs text-slate-400 pl-4 font-bold tracking-wider"
+                    className="h-6 bg-slate-100 border-b border-t text-xs text-slate-400 pl-4 font-bold tracking-wider"
                   >
-                    --- {group.name} ---
+                    --- 未分組人員 (Ungrouped) ---
                   </td>
                 </tr>
-                {sortedGroupStaff.map(renderStaffRow)}
-              </React.Fragment>
-            );
-          })}
-
-          {/* 2. 渲染未分組員工 (Spacer) */}
-          {ungroupedStaff.length > 0 && (
-            <>
-              <tr>
-                <td
-                  colSpan={days.length + 1}
-                  className="h-6 bg-slate-100 border-b border-t text-xs text-slate-400 pl-4 font-bold tracking-wider"
-                >
-                  --- 未分組人員 (Ungrouped) ---
-                </td>
-              </tr>
-              {sortStaff(ungroupedStaff).map(renderStaffRow)}
-            </>
-          )}
-        </tbody>
-      </table>
-    </div>
+                {sortStaff(ungroupedStaff).map((staff) => (
+                  <StaffRow
+                    key={staff.id}
+                    staff={staff}
+                    days={days}
+                    currentMonth={currentMonth}
+                  />
+                ))}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </TableHoverContext.Provider>
   );
 };
 
@@ -1368,7 +1449,9 @@ const DataManager = () => {
         }
       } catch (error) {
         console.error("Import failed:", error);
-        alert(`匯入失敗: ${error instanceof Error ? error.message : "未知錯誤"}`);
+        alert(
+          `匯入失敗: ${error instanceof Error ? error.message : "未知錯誤"}`,
+        );
       } finally {
         // 清空 file input 以便下次能觸發 onChange
         if (event.target) {

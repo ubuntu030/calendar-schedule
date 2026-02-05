@@ -4,6 +4,7 @@ import React, {
   useState,
   type ReactNode,
   useEffect,
+  useCallback,
 } from "react";
 import { DEFAULT_GROUPS, DEFAULT_HOLIDAYS, DEFAULT_STAFF } from "./defaultData";
 import type { Staff, Group, Schedules, Holiday, MonthlyConfigs } from "./types";
@@ -70,24 +71,23 @@ export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
 
   // [Refactor] 更新排班邏輯
   // 注意：這裡需要傳入 monthStr (yyyy-MM)，因為 Context 不知道 UI 當前選在哪個月份
-  const updateShift = (
-    staffId: string,
-    day: string,
-    value: string,
-    monthStr: string,
-  ) => {
-    setSchedules((prev: Schedules) => {
-      const monthData = prev[monthStr] || {};
-      const staffData = monthData[staffId] || {};
-      return {
-        ...prev,
-        [monthStr]: {
-          ...monthData,
-          [staffId]: { ...staffData, [day]: value },
-        },
-      };
-    });
-  };
+  // [Perf] 使用 useCallback 包裝以確保函數引用穩定，優化子組件的 memoization
+  const updateShift = useCallback(
+    (staffId: string, day: string, value: string, monthStr: string) => {
+      setSchedules((prev: Schedules) => {
+        const monthData = prev[monthStr] || {};
+        const staffData = monthData[staffId] || {};
+        return {
+          ...prev,
+          [monthStr]: {
+            ...monthData,
+            [staffId]: { ...staffData, [day]: value },
+          },
+        };
+      });
+    },
+    [setSchedules],
+  );
 
   const value = {
     staffList,
