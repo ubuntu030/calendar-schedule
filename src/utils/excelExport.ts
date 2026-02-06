@@ -74,6 +74,42 @@ export const exportAnnualScheduleToExcel = async (
 };
 
 /**
+ * 生成指定月份排班 Excel
+ */
+export const exportMonthlyScheduleToExcel = async (
+  monthDate: Date,
+  staffList: Staff[],
+  schedules: Schedules,
+  holidays: Holiday[],
+  groups: Group[],
+) => {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "React Smart Scheduler";
+  workbook.created = new Date();
+
+  const sheetName = format(monthDate, "yyyy年M月");
+  const worksheet = workbook.addWorksheet(sheetName, {
+    views: [{ state: "frozen", xSplit: 3, ySplit: 3 }], // 凍結首三行與前三欄
+  });
+
+  await generateMonthlySheet(
+    worksheet,
+    monthDate,
+    staffList,
+    schedules,
+    holidays,
+    groups,
+  );
+
+  // 匯出檔案
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  saveAs(blob, `${format(monthDate, "yyyy-MM")}排班表.xlsx`);
+};
+
+/**
  * 生成單一月份工作表邏輯
  */
 const generateMonthlySheet = async (

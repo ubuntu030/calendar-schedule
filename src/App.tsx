@@ -27,7 +27,10 @@ import {
   ShiftManager,
 } from "./components/SubComponent";
 import { DEFAULT_MONTH_CONFIG } from "./constants";
-import { exportAnnualScheduleToExcel } from "./utils/excelExport";
+import {
+  exportAnnualScheduleToExcel,
+  exportMonthlyScheduleToExcel,
+} from "./utils/excelExport";
 import { ScheduleProvider, useSchedule } from "./contexts/ScheduleContext";
 import {
   NotificationProvider,
@@ -67,6 +70,22 @@ function AppContent() {
     } catch (error) {
       console.error("Export failed:", error);
       showNotification("匯出失敗，請檢查資料是否完整", "error");
+    }
+  };
+
+  // --- 新增：處理當月 Excel 匯出 ---
+  const handleExportMonthlyExcel = async () => {
+    try {
+      await exportMonthlyScheduleToExcel(
+        currentDate,
+        staffList,
+        schedules,
+        holidays,
+        groups,
+      );
+    } catch (error) {
+      console.error("Monthly export failed:", error);
+      showNotification("當月匯出失敗，請檢查資料是否完整", "error");
     }
   };
 
@@ -126,7 +145,20 @@ function AppContent() {
           </div>
 
           {/* 右側：功能按鈕區 */}
-          <div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outlined"
+              color="info"
+              startIcon={<DownloadCloud size={18} />}
+              onClick={handleExportMonthlyExcel}
+              sx={{
+                fontWeight: "bold",
+                textTransform: "none",
+                borderRadius: 2,
+              }}
+            >
+              匯出當月 Excel
+            </Button>
             <Button
               variant="contained"
               color="success"
