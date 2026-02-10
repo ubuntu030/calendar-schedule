@@ -61,6 +61,7 @@ import {
   TableHoverContext,
   useTableHover,
 } from "../contexts/TableHoverContext";
+import { generateAutoLeaves } from "../utils/scheduling";
 import { useConfirm } from "../contexts/ConfirmDialogContext";
 import { useNotification } from "../contexts/NotificationContext";
 // [Refactor] 引入 Context Hook
@@ -603,169 +604,18 @@ const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
   }, [currentMonth]);
 
   // --- 自動排休演算法 ---
-  const autoDistributeLeave = async (
-    targetStaffIds: string[],
-    month: string,
-  ) => {
-    const [year, monthNum] = month.split("-").map(Number);
-    const daysInMonth = getDaysInMonth(year, monthNum);
+  const autoDistributeLeave = (targetStaffIds: string[], month: string) => {
     const mConfig = monthlyConfig[month] || DEFAULT_MONTH_CONFIG;
 
     setSchedules((currentSchedules) => {
-      // 使用深拷貝以安全地修改排班表
-      const newSchedules: Schedules = JSON.parse(
-        JSON.stringify(currentSchedules),
+      return generateAutoLeaves(
+        currentSchedules,
+        staffList,
+        groups,
+        mConfig,
+        targetStaffIds,
+        month,
       );
-
-      // 輔助函數：檢查人力是否足夠
-      const checkManpower = (staffId: string, dayStr: string): boolean => {
-        const staff = staffList.find((s) => s.id === staffId);
-        if (!staff) return true; // 找不到員工，不阻擋
-
-        const group = groups.find((g) => g.memberIds.includes(staffId));
-        if (!group || !group.minStaffCount) return true; // 沒分組或沒設定，不阻擋
-
-        // 計算如果此人休假，組內還剩下多少人可以工作
-        // "可以工作" = 沒有被排定休假 (例/休/國)
-        let potentialWorkers = 0;
-        group.memberIds.forEach((memberId) => {
-          // The person we are checking is about to take a leave, so don't count them.
-          if (memberId === staffId) {
-            return;
-          }
-
-          const shiftValue = newSchedules[month]?.[memberId]?.[dayStr]?.value;
-          const isLeave = shiftValue && ["例", "休", "國"].includes(shiftValue);
-
-          if (!isLeave) {
-            potentialWorkers++;
-          }
-        });
-
-        // 檢查剩下的人力是否足夠
-        return potentialWorkers >= group.minStaffCount;
-      };
-
-      // 步驟 1: 冪等性 - 清除目標人員的舊自動排休
-      targetStaffIds.forEach((staffId) => {
-        if (newSchedules[month]?.[staffId]) {
-          Object.keys(newSchedules[month][staffId]).forEach((day) => {
-            if (!newSchedules[month][staffId][day].isManual) {
-              delete newSchedules[month][staffId][day];
-            }
-          });
-        }
-      });
-
-      // 步驟 2 & 3: 為每位員工分配休假
-      targetStaffIds.forEach((staffId) => {
-        const staff = staffList.find((s) => s.id === staffId);
-        if (!staff || staff.disableAuto) return; // 跳過禁用自動排休的員工
-
-        if (!newSchedules[month]) newSchedules[month] = {};
-        if (!newSchedules[month][staffId]) newSchedules[month][staffId] = {};
-        const staffSchedule = newSchedules[month][staffId];
-
-        // 計算剩餘可用假別
-        const manualLeaves = Object.values(staffSchedule).filter(
-          (s) => s.isManual && ["例", "休", "國"].includes(s.value),
-        );
-        const leaveQuotas = {
-          例:
-            mConfig.regular -
-            manualLeaves.filter((s) => s.value === "例").length,
-          休:
-            mConfig.leave - manualLeaves.filter((s) => s.value === "休").length,
-          國:
-            mConfig.national -
-            manualLeaves.filter((s) => s.value === "國").length,
-        };
-
-        const assignLeave = (
-          dayStr: string,
-          leaveType: "例" | "休" | "國",
-        ): boolean => {
-          if (
-            leaveQuotas[leaveType] > 0 &&
-            !staffSchedule[dayStr] &&
-            checkManpower(staffId, dayStr)
-          ) {
-            staffSchedule[dayStr] = { value: leaveType, isManual: false };
-            leaveQuotas[leaveType]--;
-            return true;
-          }
-          return false;
-        };
-
-        // 規則 1: 強制 6 休 1
-        let consecutiveWorkDays = 0;
-        for (const day of daysInMonth) {
-          const dayStr = String(day.getDate()).padStart(2, "0");
-          const shift = staffSchedule[dayStr];
-          const isWorkDay = !shift || !["例", "休", "國"].includes(shift.value);
-
-          if (isWorkDay) consecutiveWorkDays++;
-          else consecutiveWorkDays = 0;
-
-          if (consecutiveWorkDays >= 6) {
-            const breakDayIndex = daysInMonth.indexOf(day) + 1;
-            if (breakDayIndex < daysInMonth.length) {
-              const breakDayStr = String(
-                daysInMonth[breakDayIndex].getDate(),
-              ).padStart(2, "0");
-              if (!staffSchedule[breakDayStr]) {
-                // 僅在當天無任何排班時強制
-                if (
-                  assignLeave(breakDayStr, "例") ||
-                  assignLeave(breakDayStr, "休") ||
-                  assignLeave(breakDayStr, "國")
-                ) {
-                  consecutiveWorkDays = 0; // 成功排休後重置計數
-                }
-              }
-            }
-          }
-        }
-
-        // 規則 2: 隨機分配剩餘假期
-        const availableDays = daysInMonth
-          .map((d) => String(d.getDate()).padStart(2, "0"))
-          .filter((dayStr) => !staffSchedule[dayStr]);
-
-        // Fisher-Yates shuffle
-        for (let i = availableDays.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [availableDays[i], availableDays[j]] = [
-            availableDays[j],
-            availableDays[i],
-          ];
-        }
-
-        for (const dayStr of availableDays) {
-          const dayNum = parseInt(dayStr, 10);
-          const prevDayStr = String(dayNum - 1).padStart(2, "0");
-          const prev2DayStr = String(dayNum - 2).padStart(2, "0");
-          const isPrevAutoLeave =
-            staffSchedule[prevDayStr] && !staffSchedule[prevDayStr].isManual;
-          const isPrev2AutoLeave =
-            staffSchedule[prev2DayStr] && !staffSchedule[prev2DayStr].isManual;
-
-          // 限制連續自動休假不超過 2 天
-          if (isPrevAutoLeave && isPrev2AutoLeave) continue;
-
-          // 依序嘗試排入例、休、國假。
-          // 使用 if/else if 結構來避免 "no-unused-expressions" ESLint 錯誤。
-          if (assignLeave(dayStr, "例")) {
-            // '例'假已成功排入，短路跳過後續
-          } else if (assignLeave(dayStr, "休")) {
-            // '休'假已成功排入，短路跳過後續
-          } else {
-            assignLeave(dayStr, "國");
-          }
-        }
-      });
-
-      return newSchedules;
     });
   };
 
