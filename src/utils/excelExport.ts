@@ -223,14 +223,15 @@ const generateMonthlySheet = async (
     // 填入每日班別
     daysArray.forEach((day) => {
       const dayStr = String(day).padStart(2, "0");
-      const shift = schedules[yearMonthKey]?.[staff.id]?.[dayStr] || "";
+      const shiftEntry = schedules[yearMonthKey]?.[staff.id]?.[dayStr];
+      const shiftValue = shiftEntry?.value || ""; // 取得班別值，如果沒有則為空字串
 
-      rowData.push(shift);
+      rowData.push(shiftValue);
 
       // 計算統計
-      if (shift === "例") countRegular++;
-      if (shift === "休") countLeave++;
-      if (shift === "國") countNational++;
+      if (shiftValue === "例") countRegular++;
+      if (shiftValue === "休") countLeave++;
+      if (shiftValue === "國") countNational++;
     });
 
     // 填入統計數據

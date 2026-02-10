@@ -6,6 +6,10 @@ import {
   Typography,
   Select,
   MenuItem,
+  Menu,
+  Checkbox,
+  ListItemIcon,
+  ListItemText,
   InputLabel,
   FormControl,
   Chip,
@@ -29,10 +33,22 @@ import {
   ChevronRight,
   Copy,
   AlertCircle,
+  MoreVertical,
+  Zap,
+  ZapOff,
+  Eraser,
 } from "lucide-react";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { format, addMonths, subMonths } from "date-fns";
-import type { Staff, Group, Holiday, HolidayType, MonthConfig } from "../types";
+import type {
+  Staff,
+  Group,
+  Holiday,
+  HolidayType,
+  MonthConfig,
+  Schedules,
+  Shift,
+} from "../types";
 import {
   DEFAULT_MONTH_CONFIG,
   SHIFT_MANAGER_LEAVE_TYPES,
@@ -101,11 +117,13 @@ const ShiftCell = React.memo(
     index: number;
     currentMonth: string;
   }) => {
-    const { schedules, holidays, updateShift } = useSchedule();
+    const { schedules, holidays, setSchedules } = useSchedule();
     const { hoveredColIndex, setHoveredColIndex } = useTableHover();
 
     const dayStr = String(day.getDate()).padStart(2, "0");
-    const shiftValue = schedules[currentMonth]?.[staffId]?.[dayStr] || "";
+    const shift = schedules[currentMonth]?.[staffId]?.[dayStr];
+    const shiftValue = shift?.value || "";
+    const isManual = shift?.isManual || false;
 
     const holiday = useMemo(() => {
       const dateStr = format(day, "yyyy-MM-dd");
@@ -124,16 +142,26 @@ const ShiftCell = React.memo(
         className={cn(
           "border-r border-b border-gray-200 p-0 relative h-12",
           cellBg,
-          isHovered && "bg-blue-50",
+          isHovered && "bg-blue-100/50",
         )}
         onMouseEnter={() => setHoveredColIndex(index)}
         onMouseLeave={() => setHoveredColIndex(null)}
       >
         <select
           value={shiftValue}
-          onChange={(e) =>
-            updateShift(staffId, dayStr, e.target.value, currentMonth)
-          }
+          onChange={(e) => {
+            // 手動修改時，isManual 永遠為 true
+            setSchedules((prev) => ({
+              ...prev,
+              [currentMonth]: {
+                ...prev[currentMonth],
+                [staffId]: {
+                  ...prev[currentMonth]?.[staffId],
+                  [dayStr]: { value: e.target.value, isManual: true },
+                },
+              },
+            }));
+          }}
           className="w-full h-full bg-transparent text-center appearance-none cursor-pointer focus:outline-none focus:bg-white/50 font-bold text-sm z-10 relative"
           style={{ textAlignLast: "center" }}
         >
@@ -143,6 +171,12 @@ const ShiftCell = React.memo(
             </option>
           ))}
         </select>
+        {isManual && shiftValue && (
+          <div
+            className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-600 rounded-full shadow"
+            title="手動設定"
+          ></div>
+        )}
       </td>
     );
   },
@@ -163,7 +197,9 @@ const StaffRow = React.memo(
     days: Date[];
     currentMonth: string;
   }) => {
-    const { schedules, monthlyConfig } = useSchedule();
+    const { schedules, monthlyConfig, staffList, setStaffList, setSchedules } =
+      useSchedule();
+    const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
 
     // 使用 useMemo 計算休假統計，僅在相關資料變更時才重新計算
     const {
@@ -176,7 +212,7 @@ const StaffRow = React.memo(
       isOver,
     } = useMemo(() => {
       const staffShifts = schedules[currentMonth]?.[staff.id] || {};
-      const counts = {
+      const counts: Record<string, number> = {
         regular: 0,
         leave: 0,
         national: 0,
@@ -184,13 +220,14 @@ const StaffRow = React.memo(
         evening: 0,
         full: 0,
       };
-      (Object.values(staffShifts) as string[]).forEach((v: string) => {
+      (Object.values(staffShifts) as Shift[]).forEach((s: Shift) => {
+        const v = s.value;
         if (v === "例") counts.regular++;
-        if (v === "休") counts.leave++;
-        if (v === "國") counts.national++;
-        if (v === "早") counts.morning++;
-        if (v === "晚") counts.evening++;
-        if (v === "全") counts.full++;
+        else if (v === "休") counts.leave++;
+        else if (v === "國") counts.national++;
+        else if (v === "早") counts.morning++;
+        else if (v === "晚") counts.evening++;
+        else if (v === "全") counts.full++;
       });
 
       const mConfig = monthlyConfig[currentMonth] || DEFAULT_MONTH_CONFIG;
@@ -211,6 +248,54 @@ const StaffRow = React.memo(
     }, [schedules, currentMonth, staff.id, monthlyConfig]);
 
     const mConfig = monthlyConfig[currentMonth] || DEFAULT_MONTH_CONFIG;
+
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+      setMenuAnchorEl(event.currentTarget);
+    };
+    const handleMenuClose = () => {
+      setMenuAnchorEl(null);
+    };
+
+    const handleToggleDisableAuto = () => {
+      setStaffList(
+        staffList.map((s) =>
+          s.id === staff.id ? { ...s, disableAuto: !s.disableAuto } : s,
+        ),
+      );
+      handleMenuClose();
+    };
+
+    const handleClearAutoShifts = () => {
+      if (
+        !window.confirm(
+          `確定要清除 ${staff.name} 於 ${currentMonth} 的所有「自動」排班資料嗎？`,
+        )
+      )
+        return;
+      setSchedules((prev) => {
+        const newSchedules = { ...prev };
+        if (!newSchedules[currentMonth]?.[staff.id]) return prev;
+
+        const newStaffSchedule: { [day: string]: Shift } = {};
+        for (const day in newSchedules[currentMonth][staff.id]) {
+          if (newSchedules[currentMonth][staff.id][day].isManual) {
+            newStaffSchedule[day] = newSchedules[currentMonth][staff.id][day];
+          }
+        }
+        newSchedules[currentMonth][staff.id] = newStaffSchedule;
+        return newSchedules;
+      });
+      handleMenuClose();
+    };
+
+    const handlePersonalAutoSchedule = () => {
+      document.dispatchEvent(
+        new CustomEvent("auto-schedule-personal", {
+          detail: { staffId: staff.id, month: currentMonth },
+        }),
+      );
+      handleMenuClose();
+    };
 
     const getStatusColor = (count: number, limit: number) => {
       if (count > limit) return "text-red-300 font-bold";
@@ -237,8 +322,8 @@ const StaffRow = React.memo(
     );
 
     return (
-      <tr className="hover:bg-blue-50 group transition-colors">
-        <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-b border-gray-200 p-2 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
+      <tr className="hover:bg-blue-50/50 group transition-colors">
+        <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50/50 border-r border-b border-gray-200 p-2 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1">
               <Tooltip title={TooltipContent} arrow placement="right">
@@ -252,14 +337,53 @@ const StaffRow = React.memo(
                 </div>
               </Tooltip>
             </div>
-            <span
-              className={cn(
-                "text-[10px] px-1.5 py-0.5 rounded font-mono",
-                getTitleColor(staff.title),
-              )}
-            >
-              {staff.title}
-            </span>
+            <div className="flex items-center">
+              <span
+                className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded font-mono",
+                  getTitleColor(staff.title),
+                )}
+              >
+                {staff.title}
+              </span>
+              <IconButton
+                size="small"
+                onClick={handleMenuOpen}
+                className="ml-1"
+              >
+                <MoreVertical size={16} />
+              </IconButton>
+              <Menu
+                anchorEl={menuAnchorEl}
+                open={Boolean(menuAnchorEl)}
+                onClose={handleMenuClose}
+              >
+                <MenuItem onClick={handlePersonalAutoSchedule}>
+                  <ListItemIcon>
+                    <Zap size={16} />
+                  </ListItemIcon>
+                  <ListItemText>個人自動排休</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={handleToggleDisableAuto}>
+                  <ListItemIcon>
+                    {staff.disableAuto ? (
+                      <ZapOff size={16} color="red" />
+                    ) : (
+                      <ZapOff size={16} />
+                    )}
+                  </ListItemIcon>
+                  <ListItemText>
+                    {staff.disableAuto ? "啟用自動排休" : "禁用自動排休"}
+                  </ListItemText>
+                </MenuItem>
+                <MenuItem onClick={handleClearAutoShifts}>
+                  <ListItemIcon>
+                    <Eraser size={16} />
+                  </ListItemIcon>
+                  <ListItemText>清除本月自動排班</ListItemText>
+                </MenuItem>
+              </Menu>
+            </div>
           </div>
         </td>
         {days.map((d, index) => (
@@ -300,8 +424,8 @@ const ScheduleHeader = React.memo(
       if (!holiday || holiday.isOff !== "2") return { pass: true };
       const workers = staffList.filter((staff) => {
         const shift =
-          schedules[currentMonth]?.[staff.id]?.[dateStr.split("-")[2]] || "";
-        return shift && shift !== "休" && shift !== "例";
+          schedules[currentMonth]?.[staff.id]?.[dateStr.split("-")[2]]?.value;
+        return shift && !["休", "例", "國", ""].includes(shift);
       });
       const hasChef = workers.some(
         (w) => w.title.includes("Chef") || w.title.includes("Sous"),
@@ -315,24 +439,41 @@ const ScheduleHeader = React.memo(
       <thead className="sticky top-0 z-30 bg-white shadow-sm">
         {/* 節日資訊列 */}
         <tr>
-          <th className="sticky left-0 top-0 z-40 bg-slate-50 border-b border-r border-gray-200 min-w-35 p-2 text-left text-xs font-normal text-gray-500">
-            <Tooltip
-              title={
-                <div className="text-xs">
-                  <div className="font-bold mb-1">排班規則 (僅國定假日):</div>
-                  <ul className="list-disc pl-4">
-                    <li>上班人數需 2 人以上</li>
-                    <li>需包含 Chef 或 Sous chef</li>
-                  </ul>
+          <th className="sticky left-0 top-0 z-40 bg-slate-50 border-b border-r border-gray-200 min-w-45 p-2 text-left text-xs font-normal text-gray-500">
+            <div className="flex items-center justify-between">
+              <Tooltip
+                title={
+                  <div className="text-xs">
+                    <div className="font-bold mb-1">排班規則 (僅國定假日):</div>
+                    <ul className="list-disc pl-4">
+                      <li>上班人數需 2 人以上</li>
+                      <li>需包含 Chef 或 Sous chef</li>
+                    </ul>
+                  </div>
+                }
+                arrow
+                placement="right"
+              >
+                <div className="flex items-center gap-1 cursor-help w-fit">
+                  <AlertTriangle size={12} /> 規則提示
                 </div>
-              }
-              arrow
-              placement="right"
-            >
-              <div className="flex items-center gap-1 cursor-help w-fit">
-                <AlertTriangle size={12} /> 規則提示
-              </div>
-            </Tooltip>
+              </Tooltip>
+              <Button
+                size="small"
+                variant="text"
+                startIcon={<Zap size={14} />}
+                onClick={() =>
+                  document.dispatchEvent(
+                    new CustomEvent("auto-schedule-all", {
+                      detail: { month: currentMonth },
+                    }),
+                  )
+                }
+                className="text-blue-600 font-bold"
+              >
+                自動排休
+              </Button>
+            </div>
           </th>
           {days.map((d, index) => {
             const dateStr = formatDate(d);
@@ -375,7 +516,7 @@ const ScheduleHeader = React.memo(
             const dayStr = String(d.getDate()).padStart(2, "0");
             const summary: Record<string, string[]> = {};
             staffList.forEach((staff) => {
-              const val = schedules[currentMonth]?.[staff.id]?.[dayStr];
+              const val = schedules[currentMonth]?.[staff.id]?.[dayStr]?.value;
               if (val) {
                 if (!summary[val]) summary[val] = [];
                 summary[val].push(staff.name);
@@ -441,7 +582,8 @@ ScheduleHeader.displayName = "ScheduleHeader";
  * @param {string} props.currentMonth - 當前月份 (YYYY-MM)
  */
 const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
-  const { staffList, groups } = useSchedule();
+  const { staffList, groups, schedules, setSchedules, monthlyConfig } =
+    useSchedule();
   const [hoveredColIndex, setHoveredColIndex] = useState<number | null>(null);
 
   // [Perf] 將 hover 狀態放入 context，避免整個 table re-render
@@ -455,6 +597,222 @@ const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
     const [year, month] = currentMonth.split("-").map(Number);
     return getDaysInMonth(year, month);
   }, [currentMonth]);
+
+  // --- 自動排休演算法 ---
+  const autoDistributeLeave = async (
+    targetStaffIds: string[],
+    month: string,
+  ) => {
+    const [year, monthNum] = month.split("-").map(Number);
+    const daysInMonth = getDaysInMonth(year, monthNum);
+    const mConfig = monthlyConfig[month] || DEFAULT_MONTH_CONFIG;
+
+    setSchedules((currentSchedules) => {
+      // 使用深拷貝以安全地修改排班表
+      const newSchedules: Schedules = JSON.parse(
+        JSON.stringify(currentSchedules),
+      );
+
+      // 輔助函數：檢查人力是否足夠
+      const checkManpower = (staffId: string, dayStr: string): boolean => {
+        const staff = staffList.find((s) => s.id === staffId);
+        if (!staff) return true; // 找不到員工，不阻擋
+
+        const group = groups.find((g) => g.memberIds.includes(staffId));
+        if (!group || !group.minStaffCount) return true; // 沒分組或沒設定，不阻擋
+
+        // 計算如果此人休假，組內還剩下多少人可以工作
+        // "可以工作" = 沒有被排定休假 (例/休/國)
+        let potentialWorkers = 0;
+        group.memberIds.forEach((memberId) => {
+          // The person we are checking is about to take a leave, so don't count them.
+          if (memberId === staffId) {
+            return;
+          }
+
+          const shiftValue = newSchedules[month]?.[memberId]?.[dayStr]?.value;
+          const isLeave = shiftValue && ["例", "休", "國"].includes(shiftValue);
+
+          if (!isLeave) {
+            potentialWorkers++;
+          }
+        });
+
+        // 檢查剩下的人力是否足夠
+        return potentialWorkers >= group.minStaffCount;
+      };
+
+      // 步驟 1: 冪等性 - 清除目標人員的舊自動排休
+      targetStaffIds.forEach((staffId) => {
+        if (newSchedules[month]?.[staffId]) {
+          Object.keys(newSchedules[month][staffId]).forEach((day) => {
+            if (!newSchedules[month][staffId][day].isManual) {
+              delete newSchedules[month][staffId][day];
+            }
+          });
+        }
+      });
+
+      // 步驟 2 & 3: 為每位員工分配休假
+      targetStaffIds.forEach((staffId) => {
+        const staff = staffList.find((s) => s.id === staffId);
+        if (!staff || staff.disableAuto) return; // 跳過禁用自動排休的員工
+
+        if (!newSchedules[month]) newSchedules[month] = {};
+        if (!newSchedules[month][staffId]) newSchedules[month][staffId] = {};
+        const staffSchedule = newSchedules[month][staffId];
+
+        // 計算剩餘可用假別
+        const manualLeaves = Object.values(staffSchedule).filter(
+          (s) => s.isManual && ["例", "休", "國"].includes(s.value),
+        );
+        const leaveQuotas = {
+          例:
+            mConfig.regular -
+            manualLeaves.filter((s) => s.value === "例").length,
+          休:
+            mConfig.leave - manualLeaves.filter((s) => s.value === "休").length,
+          國:
+            mConfig.national -
+            manualLeaves.filter((s) => s.value === "國").length,
+        };
+
+        const assignLeave = (
+          dayStr: string,
+          leaveType: "例" | "休" | "國",
+        ): boolean => {
+          if (
+            leaveQuotas[leaveType] > 0 &&
+            !staffSchedule[dayStr] &&
+            checkManpower(staffId, dayStr)
+          ) {
+            staffSchedule[dayStr] = { value: leaveType, isManual: false };
+            leaveQuotas[leaveType]--;
+            return true;
+          }
+          return false;
+        };
+
+        // 規則 1: 強制 6 休 1
+        let consecutiveWorkDays = 0;
+        for (const day of daysInMonth) {
+          const dayStr = String(day.getDate()).padStart(2, "0");
+          const shift = staffSchedule[dayStr];
+          const isWorkDay = !shift || !["例", "休", "國"].includes(shift.value);
+
+          if (isWorkDay) consecutiveWorkDays++;
+          else consecutiveWorkDays = 0;
+
+          if (consecutiveWorkDays >= 6) {
+            const breakDayIndex = daysInMonth.indexOf(day) + 1;
+            if (breakDayIndex < daysInMonth.length) {
+              const breakDayStr = String(
+                daysInMonth[breakDayIndex].getDate(),
+              ).padStart(2, "0");
+              if (!staffSchedule[breakDayStr]) {
+                // 僅在當天無任何排班時強制
+                if (
+                  assignLeave(breakDayStr, "例") ||
+                  assignLeave(breakDayStr, "休") ||
+                  assignLeave(breakDayStr, "國")
+                ) {
+                  consecutiveWorkDays = 0; // 成功排休後重置計數
+                }
+              }
+            }
+          }
+        }
+
+        // 規則 2: 隨機分配剩餘假期
+        const availableDays = daysInMonth
+          .map((d) => String(d.getDate()).padStart(2, "0"))
+          .filter((dayStr) => !staffSchedule[dayStr]);
+
+        // Fisher-Yates shuffle
+        for (let i = availableDays.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [availableDays[i], availableDays[j]] = [
+            availableDays[j],
+            availableDays[i],
+          ];
+        }
+
+        for (const dayStr of availableDays) {
+          const dayNum = parseInt(dayStr, 10);
+          const prevDayStr = String(dayNum - 1).padStart(2, "0");
+          const prev2DayStr = String(dayNum - 2).padStart(2, "0");
+          const isPrevAutoLeave =
+            staffSchedule[prevDayStr] && !staffSchedule[prevDayStr].isManual;
+          const isPrev2AutoLeave =
+            staffSchedule[prev2DayStr] && !staffSchedule[prev2DayStr].isManual;
+
+          // 限制連續自動休假不超過 2 天
+          if (isPrevAutoLeave && isPrev2AutoLeave) continue;
+
+          // 依序嘗試排入例、休、國假。
+          // 使用 if/else if 結構來避免 "no-unused-expressions" ESLint 錯誤。
+          if (assignLeave(dayStr, "例")) {
+            // '例'假已成功排入，短路跳過後續
+          } else if (assignLeave(dayStr, "休")) {
+            // '休'假已成功排入，短路跳過後續
+          } else {
+            assignLeave(dayStr, "國");
+          }
+        }
+      });
+
+      return newSchedules;
+    });
+  };
+
+  const handleClearGroupAutoShifts = (
+    targetStaffIds: string[],
+    month: string,
+  ) => {
+    if (
+      !window.confirm(`確定要清除此分組於 ${month} 的所有「自動」排休資料嗎？`)
+    )
+      return;
+
+    setSchedules((prev) => {
+      const newSchedules = JSON.parse(JSON.stringify(prev));
+
+      targetStaffIds.forEach((staffId) => {
+        if (newSchedules[month]?.[staffId]) {
+          const staffSchedule = newSchedules[month][staffId];
+          Object.keys(staffSchedule).forEach((day) => {
+            const shift = staffSchedule[day];
+            // 僅清空 isManual=false 的休、例、國
+            if (!shift.isManual && ["例", "休", "國"].includes(shift.value)) {
+              delete staffSchedule[day];
+            }
+          });
+        }
+      });
+
+      return newSchedules;
+    });
+  };
+
+  // 使用 Event Listener 處理來自子組件的觸發，避免 props drilling 破壞 memo
+  React.useEffect(() => {
+    const handleAll = (e: Event) =>
+      autoDistributeLeave(
+        staffList.map((s) => s.id),
+        (e as CustomEvent).detail.month,
+      );
+    const handlePersonal = (e: Event) =>
+      autoDistributeLeave(
+        [(e as CustomEvent).detail.staffId],
+        (e as CustomEvent).detail.month,
+      );
+    document.addEventListener("auto-schedule-all", handleAll);
+    document.addEventListener("auto-schedule-personal", handlePersonal);
+    return () => {
+      document.removeEventListener("auto-schedule-all", handleAll);
+      document.removeEventListener("auto-schedule-personal", handlePersonal);
+    };
+  }, [staffList, groups, schedules, monthlyConfig]); // 依賴項確保函數能取到最新 state
 
   // --- 分組渲染邏輯 ---
   // 1. 找出所有已分組的 ID
@@ -480,9 +838,38 @@ const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
                   <tr>
                     <td
                       colSpan={days.length + 1}
-                      className="h-6 bg-slate-100 border-b border-t border-gray-200 text-xs text-slate-400 pl-4 font-bold tracking-wider"
+                      className="h-6 bg-slate-100 border-b border-t border-gray-200 text-xs text-slate-400 font-bold tracking-wider"
                     >
-                      --- {group.name} ---
+                      <div className="flex justify-start items-center pl-4">
+                        <span>--- {group.name} ---</span>
+                        <div className="flex items-center">
+                          <Button
+                            size="small"
+                            variant="text"
+                            startIcon={<Zap size={14} />}
+                            onClick={() =>
+                              autoDistributeLeave(group.memberIds, currentMonth)
+                            }
+                            className="text-blue-600 font-bold"
+                          >
+                            組內排休
+                          </Button>
+                          <Tooltip title="清除組內自動排休">
+                            <IconButton
+                              size="small"
+                              onClick={() =>
+                                handleClearGroupAutoShifts(
+                                  group.memberIds,
+                                  currentMonth,
+                                )
+                              }
+                              className="text-gray-400 hover:text-red-500 ml-1 mr-2"
+                            >
+                              <Eraser size={14} />
+                            </IconButton>
+                          </Tooltip>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                   {sortedGroupStaff.map((staff) => (
@@ -542,6 +929,7 @@ const GroupManager = () => {
       id: `g_${Date.now()}`,
       name: newGroupName,
       memberIds: [],
+      minStaffCount: 2, // 預設最低人力為 1
     };
     setGroups([...groups, newGroup]);
     setNewGroupName("");
@@ -554,11 +942,12 @@ const GroupManager = () => {
     }
   };
 
-  // 更新群組名稱
-  const handleUpdateGroupName = (groupId: string, newName: string) => {
-    setGroups(
-      groups.map((g) => (g.id === groupId ? { ...g, name: newName } : g)),
-    );
+  // 更新群組資料
+  const handleUpdateGroup = (
+    groupId: string,
+    updates: Partial<Pick<Group, "name" | "minStaffCount">>,
+  ) => {
+    setGroups(groups.map((g) => (g.id === groupId ? { ...g, ...updates } : g)));
   };
 
   // 加入成員到群組 (需處理 Exclusive Logic: 從其他群組移除)
@@ -643,16 +1032,34 @@ const GroupManager = () => {
                 className="font-bold text-lg bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-slate-800 w-full mr-2"
                 value={group.name}
                 onChange={(e) =>
-                  handleUpdateGroupName(group.id, e.target.value)
+                  handleUpdateGroup(group.id, { name: e.target.value })
                 }
               />
-              <IconButton
-                size="small"
-                color="error"
-                onClick={() => handleDeleteGroup(group.id)}
-              >
-                <Trash2 size={16} />
-              </IconButton>
+              <div className="flex items-center gap-2 shrink-0">
+                <TextField
+                  label="最低人力"
+                  type="number"
+                  size="small"
+                  variant="standard"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: 0, style: { textAlign: "center" } }}
+                  className="w-20"
+                  value={group.minStaffCount ?? 1}
+                  onChange={(e) => {
+                    const newCount = parseInt(e.target.value, 10);
+                    handleUpdateGroup(group.id, {
+                      minStaffCount: isNaN(newCount) ? 1 : newCount,
+                    });
+                  }}
+                />
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={() => handleDeleteGroup(group.id)}
+                >
+                  <Trash2 size={16} />
+                </IconButton>
+              </div>
             </div>
 
             {/* Content: 成員列表 */}
@@ -767,7 +1174,7 @@ const StaffManager = () => {
   const handleDelete = (id: string) => {
     if (window.confirm("確定刪除此員工？其所有排班與分組資料將一併被清除。")) {
       // 1. 從 staffList 移除
-      setStaffList((prev) => prev.filter((s) => s.id !== id));
+      setStaffList((prev: Staff[]) => prev.filter((s) => s.id !== id));
 
       // 2. 從 groups 移除
       setGroups((prevGroups) =>
@@ -778,7 +1185,7 @@ const StaffManager = () => {
       );
 
       // 3. 從 schedules 移除
-      setSchedules((prevSchedules) => {
+      setSchedules((prevSchedules: Schedules) => {
         const nextSchedules = { ...prevSchedules };
         Object.keys(nextSchedules).forEach((month) => {
           const monthSchedule = nextSchedules[month];

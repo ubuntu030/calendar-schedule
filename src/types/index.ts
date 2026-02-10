@@ -5,6 +5,7 @@ export interface Staff {
   id: string;
   name: string;
   title: string;
+  disableAuto?: boolean;
 }
 
 /**
@@ -14,6 +15,7 @@ export interface Group {
   id: string;
   name: string;
   memberIds: string[];
+  minStaffCount: number;
 }
 
 /**
@@ -33,13 +35,21 @@ export interface Holiday {
 }
 
 /**
- * 排班資料結構
- * e.g. { "2023-10": { "staff-1": { "01": "早", "02": "休" } } }
+ * 單一排班資料
+ */
+export interface Shift {
+  value: string;
+  isManual: boolean;
+}
+
+/**
+ * 排班資料結構 e.g. { "2023-10": { "staff-1": { "01": { value: "早", isManual:
+ * true } } } }
  */
 export interface Schedules {
   [yearMonth: string]: {
     [staffId: string]: {
-      [day: string]: string;
+      [day: string]: Shift;
     };
   };
 }
