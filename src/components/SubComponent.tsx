@@ -61,6 +61,7 @@ import {
   TableHoverContext,
   useTableHover,
 } from "../contexts/TableHoverContext";
+import { useConfirm } from "../contexts/ConfirmDialogContext";
 import { useNotification } from "../contexts/NotificationContext";
 // [Refactor] 引入 Context Hook
 
@@ -200,6 +201,7 @@ const StaffRow = React.memo(
     const { schedules, monthlyConfig, staffList, setStaffList, setSchedules } =
       useSchedule();
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+    const confirm = useConfirm();
 
     // 使用 useMemo 計算休假統計，僅在相關資料變更時才重新計算
     const {
@@ -266,26 +268,27 @@ const StaffRow = React.memo(
     };
 
     const handleClearAutoShifts = () => {
-      if (
-        !window.confirm(
-          `確定要清除 ${staff.name} 於 ${currentMonth} 的所有「自動」排班資料嗎？`,
-        )
-      )
-        return;
-      setSchedules((prev) => {
-        const newSchedules = { ...prev };
-        if (!newSchedules[currentMonth]?.[staff.id]) return prev;
+      confirm({
+        title: "清除自動排班",
+        description: `確定要清除 ${staff.name} 於 ${currentMonth} 的所有「自動」排班資料嗎？`,
+        onConfirm: () => {
+          setSchedules((prev) => {
+            const newSchedules = { ...prev };
+            if (!newSchedules[currentMonth]?.[staff.id]) return prev;
 
-        const newStaffSchedule: { [day: string]: Shift } = {};
-        for (const day in newSchedules[currentMonth][staff.id]) {
-          if (newSchedules[currentMonth][staff.id][day].isManual) {
-            newStaffSchedule[day] = newSchedules[currentMonth][staff.id][day];
-          }
-        }
-        newSchedules[currentMonth][staff.id] = newStaffSchedule;
-        return newSchedules;
+            const newStaffSchedule: { [day: string]: Shift } = {};
+            for (const day in newSchedules[currentMonth][staff.id]) {
+              if (newSchedules[currentMonth][staff.id][day].isManual) {
+                newStaffSchedule[day] =
+                  newSchedules[currentMonth][staff.id][day];
+              }
+            }
+            newSchedules[currentMonth][staff.id] = newStaffSchedule;
+            return newSchedules;
+          });
+          handleMenuClose();
+        },
       });
-      handleMenuClose();
     };
 
     const handlePersonalAutoSchedule = () => {
@@ -584,6 +587,7 @@ ScheduleHeader.displayName = "ScheduleHeader";
 const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
   const { staffList, groups, schedules, setSchedules, monthlyConfig } =
     useSchedule();
+  const confirm = useConfirm();
   const [hoveredColIndex, setHoveredColIndex] = useState<number | null>(null);
 
   // [Perf] 將 hover 狀態放入 context，避免整個 table re-render
@@ -769,28 +773,32 @@ const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
     targetStaffIds: string[],
     month: string,
   ) => {
-    if (
-      !window.confirm(`確定要清除此分組於 ${month} 的所有「自動」排休資料嗎？`)
-    )
-      return;
+    confirm({
+      title: "清除組內自動排休",
+      description: `確定要清除此分組於 ${month} 的所有「自動」排休資料嗎？`,
+      onConfirm: () => {
+        setSchedules((prev) => {
+          const newSchedules = JSON.parse(JSON.stringify(prev));
 
-    setSchedules((prev) => {
-      const newSchedules = JSON.parse(JSON.stringify(prev));
-
-      targetStaffIds.forEach((staffId) => {
-        if (newSchedules[month]?.[staffId]) {
-          const staffSchedule = newSchedules[month][staffId];
-          Object.keys(staffSchedule).forEach((day) => {
-            const shift = staffSchedule[day];
-            // 僅清空 isManual=false 的休、例、國
-            if (!shift.isManual && ["例", "休", "國"].includes(shift.value)) {
-              delete staffSchedule[day];
+          targetStaffIds.forEach((staffId) => {
+            if (newSchedules[month]?.[staffId]) {
+              const staffSchedule = newSchedules[month][staffId];
+              Object.keys(staffSchedule).forEach((day) => {
+                const shift = staffSchedule[day];
+                // 僅清空 isManual=false 的休、例、國
+                if (
+                  !shift.isManual &&
+                  ["例", "休", "國"].includes(shift.value)
+                ) {
+                  delete staffSchedule[day];
+                }
+              });
             }
           });
-        }
-      });
 
-      return newSchedules;
+          return newSchedules;
+        });
+      },
     });
   };
 
@@ -919,6 +927,7 @@ const ScheduleTable = ({ currentMonth }: { currentMonth: string }) => {
 const GroupManager = () => {
   // [Refactor] 從 Context 取得資料
   const { groups, setGroups, staffList } = useSchedule();
+  const confirm = useConfirm();
 
   const [newGroupName, setNewGroupName] = useState("");
 
@@ -937,9 +946,13 @@ const GroupManager = () => {
 
   // 刪除群組
   const handleDeleteGroup = (groupId: string) => {
-    if (window.confirm("確定刪除此群組？成員將變為未分組狀態。")) {
-      setGroups(groups.filter((g) => g.id !== groupId));
-    }
+    confirm({
+      title: "刪除群組",
+      description: "確定刪除此群組？成員將變為未分組狀態。",
+      onConfirm: () => {
+        setGroups(groups.filter((g) => g.id !== groupId));
+      },
+    });
   };
 
   // 更新群組資料
@@ -1158,6 +1171,7 @@ const GroupManager = () => {
  */
 const StaffManager = () => {
   const { staffList, setStaffList, setGroups, setSchedules } = useSchedule();
+  const confirm = useConfirm();
 
   const [newStaff, setNewStaff] = useState({
     id: "",
@@ -1172,32 +1186,36 @@ const StaffManager = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm("確定刪除此員工？其所有排班與分組資料將一併被清除。")) {
-      // 1. 從 staffList 移除
-      setStaffList((prev: Staff[]) => prev.filter((s) => s.id !== id));
+    confirm({
+      title: "刪除員工",
+      description: "確定刪除此員工？其所有排班與分組資料將一併被清除。",
+      onConfirm: () => {
+        // 1. 從 staffList 移除
+        setStaffList((prev: Staff[]) => prev.filter((s) => s.id !== id));
 
-      // 2. 從 groups 移除
-      setGroups((prevGroups) =>
-        prevGroups.map((g) => ({
-          ...g,
-          memberIds: g.memberIds.filter((memberId) => memberId !== id),
-        })),
-      );
+        // 2. 從 groups 移除
+        setGroups((prevGroups) =>
+          prevGroups.map((g) => ({
+            ...g,
+            memberIds: g.memberIds.filter((memberId) => memberId !== id),
+          })),
+        );
 
-      // 3. 從 schedules 移除
-      setSchedules((prevSchedules: Schedules) => {
-        const nextSchedules = { ...prevSchedules };
-        Object.keys(nextSchedules).forEach((month) => {
-          const monthSchedule = nextSchedules[month];
-          if (monthSchedule && id in monthSchedule) {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { [id]: deleted, ...remainingStaff } = monthSchedule;
-            nextSchedules[month] = remainingStaff;
-          }
+        // 3. 從 schedules 移除
+        setSchedules((prevSchedules: Schedules) => {
+          const nextSchedules = { ...prevSchedules };
+          Object.keys(nextSchedules).forEach((month) => {
+            const monthSchedule = nextSchedules[month];
+            if (monthSchedule && id in monthSchedule) {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { [id]: deleted, ...remainingStaff } = monthSchedule;
+              nextSchedules[month] = remainingStaff;
+            }
+          });
+          return nextSchedules;
         });
-        return nextSchedules;
-      });
-    }
+      },
+    });
   };
 
   // 預覽排序結果
@@ -1762,6 +1780,7 @@ const DataManager = () => {
     monthlyConfig,
     setMonthlyConfig,
   } = useSchedule();
+  const confirm = useConfirm();
   const { showNotification } = useNotification();
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -1821,19 +1840,28 @@ const DataManager = () => {
           throw new Error("JSON 檔案格式不符。缺少必要的資料鍵。");
         }
 
-        if (
-          window.confirm(
-            "確定要匯入新資料嗎？這將會覆蓋所有現有資料且無法復原。",
-          )
-        ) {
-          // 使用匯入的資料更新 Context 狀態
-          setStaffList(importedData.staffList);
-          setGroups(importedData.groups);
-          setSchedules(importedData.schedules);
-          setHolidays(importedData.holidays);
-          setMonthlyConfig(importedData.monthlyConfig);
-          showNotification("資料匯入成功！頁面將會同步更新。", "success");
-        }
+        confirm({
+          title: "匯入資料",
+          description: (
+            <>
+              您確定要匯入新資料嗎？
+              <br />
+              <strong style={{ color: "#d32f2f" }}>
+                此動作將會覆蓋所有現有資料且無法復原。
+              </strong>
+            </>
+          ),
+          confirmText: "確定匯入",
+          onConfirm: () => {
+            // 使用匯入的資料更新 Context 狀態
+            setStaffList(importedData.staffList);
+            setGroups(importedData.groups);
+            setSchedules(importedData.schedules);
+            setHolidays(importedData.holidays);
+            setMonthlyConfig(importedData.monthlyConfig);
+            showNotification("資料匯入成功！頁面將會同步更新。", "success");
+          },
+        });
       } catch (error) {
         console.error("Import failed:", error);
         showNotification(
