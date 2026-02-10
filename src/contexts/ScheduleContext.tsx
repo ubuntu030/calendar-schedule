@@ -6,8 +6,18 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { DEFAULT_GROUPS, DEFAULT_HOLIDAYS, DEFAULT_STAFF } from "../defaultData";
-import type { Staff, Group, Schedules, Holiday, MonthlyConfigs } from "../types";
+import {
+  DEFAULT_GROUPS,
+  DEFAULT_HOLIDAYS,
+  DEFAULT_STAFF,
+} from "../defaultData";
+import type {
+  Staff,
+  Group,
+  Schedules,
+  Holiday,
+  MonthlyConfigs,
+} from "../types";
 
 // [Refactor] 定義 Context 的資料型別，包含狀態與操作函式
 interface ScheduleContextType {
@@ -63,11 +73,23 @@ function useLocalStorage<T>(
 // [Refactor] 建立 Provider 組件，封裝所有狀態邏輯
 export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
   // 初始資料改為從 localStorage 讀取，若無則使用預設值
-  const [staffList, setStaffList] = useLocalStorage<Staff[]>("staffList", DEFAULT_STAFF);
-  const [groups, setGroups] = useLocalStorage<Group[]>("groups", DEFAULT_GROUPS);
+  const [staffList, setStaffList] = useLocalStorage<Staff[]>(
+    "staffList",
+    DEFAULT_STAFF,
+  );
+  const [groups, setGroups] = useLocalStorage<Group[]>(
+    "groups",
+    DEFAULT_GROUPS,
+  );
   const [schedules, setSchedules] = useLocalStorage<Schedules>("schedules", {});
-  const [holidays, setHolidays] = useLocalStorage<Holiday[]>("holidays", DEFAULT_HOLIDAYS);
-  const [monthlyConfig, setMonthlyConfig] = useLocalStorage<MonthlyConfigs>("monthlyConfig", {});
+  const [holidays, setHolidays] = useLocalStorage<Holiday[]>(
+    "holidays",
+    DEFAULT_HOLIDAYS,
+  );
+  const [monthlyConfig, setMonthlyConfig] = useLocalStorage<MonthlyConfigs>(
+    "monthlyConfig",
+    {},
+  );
 
   // [Refactor] 更新排班邏輯
   // 注意：這裡需要傳入 monthStr (yyyy-MM)，因為 Context 不知道 UI 當前選在哪個月份
@@ -81,7 +103,7 @@ export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
           ...prev,
           [monthStr]: {
             ...monthData,
-            [staffId]: { ...staffData, [day]: value },
+            [staffId]: { ...staffData, [day]: value as any },
           },
         };
       });

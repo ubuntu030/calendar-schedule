@@ -1,3 +1,5 @@
+import type { Group } from "./types";
+
 export const DEFAULT_STAFF = [
   { id: "200043", name: "廖仁彥", title: "Chef" },
   { id: "190098", name: "羅雅今", title: "CDP" },
@@ -14,21 +16,24 @@ export const DEFAULT_STAFF = [
   { id: "N260005", name: "李晉丞", title: "Inter" },
 ];
 
-export const DEFAULT_GROUPS = [
+export const DEFAULT_GROUPS: Group[] = [
   {
     id: "g1",
     name: "早班 (甜點)",
     memberIds: ["200043", "190098", "210028"],
+    minStaffCount: 2,
   },
   {
     id: "g2",
     name: "晚班 (甜點)",
     memberIds: ["240014", "220006", "220032", "230023", "N250022", "PT001"],
+    minStaffCount: 3,
   },
   {
     id: "g3",
     name: "麵包部",
     memberIds: ["170142", "220070", "210026", "N260005"],
+    minStaffCount: 2,
   },
 ];
 
