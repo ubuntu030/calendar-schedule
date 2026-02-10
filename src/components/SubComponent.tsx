@@ -7,7 +7,6 @@ import {
   Select,
   MenuItem,
   Menu,
-  Checkbox,
   ListItemIcon,
   ListItemText,
   InputLabel,
